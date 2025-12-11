@@ -1,0 +1,1 @@
+In `client`: `ln -s ../hyperplane-wasm/pkg ./src/wasm`

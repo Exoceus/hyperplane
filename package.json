@@ -1,0 +1,24 @@
+{
+    "name": "hyperplane",
+    "private": true,
+    "workspaces": [
+        "web"
+    ],
+    "scripts": {
+        "build:wasm": "cd core && wasm-pack build --target web --out-dir pkg",
+        "build:wasm:dev": "cd core && wasm-pack build --target web --dev --out-dir pkg",
+        "copy:wasm": "rm -rf web/src/wasm && cp -r core/pkg web/src/wasm",
+        "prebuild:client": "npm run build:wasm && npm run copy:wasm",
+        "build:client": "cd web && npm run build",
+        "build": "npm run prebuild:client && npm run build:client",
+        "dev:wasm": "npm run build:wasm:dev && npm run copy:wasm",
+        "dev": "npm run dev:wasm && cd web && npm run dev",
+        "watch:wasm": "chokidar 'core/src/**/*.rs' -c 'npm run build:wasm:dev && npm run copy:wasm'",
+        "dev:all": "npm run dev:wasm && concurrently \"npm run watch:wasm\" \"cd web && npm run dev\"",
+        "clean": "rm -rf core/pkg core/target web/dist web/src/wasm"
+    },
+    "devDependencies": {
+        "chokidar-cli": "^3.0.0",
+        "concurrently": "^8.2.2"
+    }
+}
