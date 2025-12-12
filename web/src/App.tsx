@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react";
-import init, {add} from "./wasm";
+import init, {LinearlySeparableDatasetGenerator} from "./wasm";
 
 function App() {
     const [ready, setReady] = useState(false);
@@ -11,9 +11,19 @@ function App() {
     if (!ready) return <div>Loading WASM...</div>;
 
     // Now you can call your_rust_function with full type safety!
-    const result = add(4, 2);
+    const datasetGenerator = new LinearlySeparableDatasetGenerator(100000);
+    const dataset = datasetGenerator.generateRandom(14n).slice(0, 100);
 
-    return <div>Testing: {result}</div>;
+    return (
+        <div>
+            Dataset:
+            {dataset.slice(0, 10).map((datapoint) => (
+                <p>
+                    {datapoint.label}: ({datapoint.x1}, {datapoint.x2})
+                </p>
+            ))}
+        </div>
+    );
 }
 
 export default App;
