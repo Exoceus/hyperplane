@@ -6,3 +6,11 @@ publish = "web/dist"
 from = "/*"
 to = "/index.html"
 status = 200
+
+# Install Rust toolchain
+[[build.processing.ignore]]
+for = "/*"
+
+[context.production.environment]
+CARGO_HOME = "/opt/buildhome/.cargo"
+RUSTUP_HOME = "/opt/buildhome/.rustup"

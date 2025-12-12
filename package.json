@@ -5,10 +5,11 @@
         "web"
     ],
     "scripts": {
+        "install-rust": "./install-rust.sh",
         "build:wasm": "cd core && wasm-pack build --target web --out-dir pkg",
         "build:wasm:dev": "cd core && wasm-pack build --target web --dev --out-dir pkg",
         "copy:wasm": "rm -rf web/src/wasm && cp -r core/pkg web/src/wasm",
-        "prebuild:client": "npm run build:wasm && npm run copy:wasm",
+        "prebuild:client": "npm run install-rust && npm run build:wasm && npm run copy:wasm",
         "build:client": "cd web && npm run build",
         "build": "npm run prebuild:client && npm run build:client",
         "dev:wasm": "npm run build:wasm:dev && npm run copy:wasm",
