@@ -13,7 +13,6 @@ status = 200
 NODE_VERSION = "18"
 CARGO_HOME = "/opt/buildhome/.cargo"
 RUSTUP_HOME = "/opt/buildhome/.rustup"
-PATH = "/opt/buildhome/.cargo/bin:$PATH"
 
 [[build.cache]]
 paths = ["core/target", "/opt/buildhome/.cargo"]
