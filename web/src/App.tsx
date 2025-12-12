@@ -91,7 +91,7 @@ function App() {
                         mode: "markers",
                         type: "scatter",
                         name: "Label +1",
-                        marker: {color: "blue", size: 6, symbol: "cross"},
+                        marker: {color: "light-blue", size: 6, symbol: "cross"},
                     },
                     {
                         x: negativePoints.map((p) => p.x1),
@@ -99,7 +99,7 @@ function App() {
                         mode: "markers",
                         type: "scatter",
                         name: "Label -1",
-                        marker: {color: "red", size: 6, symbol: "square"},
+                        marker: {color: "light-red", size: 6, symbol: "square"},
                     },
                     {
                         x: lineX,
@@ -117,6 +117,9 @@ function App() {
                     width: 700,
                     height: 700,
                     hovermode: "closest",
+                    plot_bgcolor: "rgba(0,0,0,0)",
+                    paper_bgcolor: "rgba(0,0,0,0)",
+                    font: {color: "white"},
                 }}
             />
         </div>
