@@ -36,8 +36,7 @@ function App() {
             <div style={{marginBottom: "20px"}}>
                 <div style={{marginBottom: "15px"}}>
                     <label>
-                        w1 (weight for x1): <strong>{w1.toFixed(2)}</strong>
-                        <br />
+                        w1 (weight for x1): <strong>{w1.toFixed(2)}</strong>{" "}
                         <input
                             type="range"
                             min="-1"
@@ -52,8 +51,7 @@ function App() {
 
                 <div style={{marginBottom: "15px"}}>
                     <label>
-                        w2 (weight for x2): <strong>{w2.toFixed(2)}</strong>
-                        <br />
+                        w2 (weight for x2): <strong>{w2.toFixed(2)}</strong>{" "}
                         <input
                             type="range"
                             min="-1"
@@ -68,8 +66,7 @@ function App() {
 
                 <div style={{marginBottom: "15px"}}>
                     <label>
-                        b (bias): <strong>{b.toFixed(2)}</strong>
-                        <br />
+                        b (bias): <strong>{b.toFixed(2)}</strong>{" "}
                         <input
                             type="range"
                             min="-10"
@@ -119,7 +116,7 @@ function App() {
                     hovermode: "closest",
                     plot_bgcolor: "rgba(0,0,0,0)",
                     paper_bgcolor: "rgba(0,0,0,0)",
-                    font: {color: "white"},
+                    font: {color: "white", family: "Inter, sans-serif"},
                 }}
             />
         </div>
