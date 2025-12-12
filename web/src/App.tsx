@@ -1,29 +1,23 @@
-import {useCallback, useEffect, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import Plot from "react-plotly.js";
 import "./App.css";
-import init, {type DataPoint, LinearlySeparableDatasetGenerator} from "./wasm";
+import init, {LinearlySeparableDatasetGenerator} from "./wasm";
 
 function App() {
     const [ready, setReady] = useState(false);
     const [w1, setW1] = useState(0.5);
     const [w2, setW2] = useState(0.5);
     const [b, setB] = useState(0);
-    const [dataset, setDataset] = useState<DataPoint[]>([]);
 
     useEffect(() => {
         init().then(() => setReady(true));
     }, []);
 
-    const generateDataset = useCallback(() => {
+    const dataset = useMemo(() => {
+        if (!ready) return [];
         const datasetGenerator = new LinearlySeparableDatasetGenerator(500);
         return datasetGenerator.generateFixed(w1, w2, b);
-    }, [w1, w2, b]);
-
-    useEffect(() => {
-        if (!ready) return;
-
-        setDataset(generateDataset());
-    }, [ready, generateDataset]);
+    }, [ready, w1, w2, b]);
 
     if (!ready) return <div>Loading WASM...</div>;
 
