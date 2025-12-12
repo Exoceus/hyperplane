@@ -10,7 +10,7 @@ status = 200
 
 
 [build.environment]
-NODE_VERSION = "18"
+NODE_VERSION = "24"
 CARGO_HOME = "/opt/buildhome/.cargo"
 RUSTUP_HOME = "/opt/buildhome/.rustup"
 
