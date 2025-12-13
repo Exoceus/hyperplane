@@ -5,6 +5,7 @@ import init, {LinearlySeparableDatasetGenerator} from "./wasm";
 
 function App() {
     const [ready, setReady] = useState(false);
+    const [datasetSize, setDatasetSize] = useState(10);
     const [w1, setW1] = useState(0.5);
     const [w2, setW2] = useState(0.5);
     const [b, setB] = useState(0);
@@ -15,9 +16,9 @@ function App() {
 
     const dataset = useMemo(() => {
         if (!ready) return [];
-        const datasetGenerator = new LinearlySeparableDatasetGenerator(500);
+        const datasetGenerator = new LinearlySeparableDatasetGenerator(datasetSize);
         return datasetGenerator.generateFixed(w1, w2, b);
-    }, [ready, w1, w2, b]);
+    }, [ready, datasetSize, w1, w2, b]);
 
     if (!ready) return <div>Loading WASM...</div>;
 
@@ -34,6 +35,21 @@ function App() {
             <h1>Linearly Separable Dataset Visualizer</h1>
 
             <div style={{marginBottom: "20px"}}>
+                <div style={{marginBottom: "15px"}}>
+                    <label>
+                        n (dataset size): <strong>{datasetSize.toFixed(0)}</strong>{" "}
+                        <input
+                            type="range"
+                            min="5"
+                            max="500"
+                            step="1"
+                            value={datasetSize}
+                            onChange={(e) => setDatasetSize(parseFloat(e.target.value))}
+                            style={{width: "300px"}}
+                        />
+                    </label>
+                </div>
+
                 <div style={{marginBottom: "15px"}}>
                     <label>
                         w1 (weight for x1): <strong>{w1.toFixed(2)}</strong>{" "}
@@ -109,8 +125,8 @@ function App() {
                 ]}
                 layout={{
                     title: "Dataset Visualization",
-                    xaxis: {title: "x1", range: [-10, 10]},
-                    yaxis: {title: "x2", range: [-10, 10]},
+                    xaxis: {title: "x1", range: [-10.5, 10.5]},
+                    yaxis: {title: "x2", range: [-10.5, 10.5]},
                     width: 700,
                     height: 700,
                     hovermode: "closest",
