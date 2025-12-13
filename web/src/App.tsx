@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useState} from "react";
 import Plot from "react-plotly.js";
 import "./App.css";
+import image from "./assets/logo.png";
 import init, {LinearlySeparableDatasetGenerator} from "./wasm";
 
 function App() {
@@ -32,6 +33,8 @@ function App() {
 
     return (
         <div style={{padding: "20px"}}>
+            <img src={image} alt="Logo" style={{maxWidth: "500px", marginBottom: "20px"}} />
+
             <h1>Linearly Separable Dataset Visualizer</h1>
 
             <div style={{marginBottom: "20px"}}>
