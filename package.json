@@ -4,6 +4,10 @@
     "workspaces": [
         "web"
     ],
+    "engines": {
+        "node": "24.4.1",
+        "npm": "11.4.2"
+    },
     "scripts": {
         "install-rust": "./install-rust.sh",
         "build:wasm": "export PATH=\"$HOME/.cargo/bin:$PATH\" && cd core && wasm-pack build --target web --out-dir pkg",
