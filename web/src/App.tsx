@@ -17,8 +17,8 @@ function App() {
 
     const dataset = useMemo(() => {
         if (!ready) return [];
-        const datasetGenerator = new LinearlySeparableDatasetGenerator(datasetSize);
-        return datasetGenerator.generateFixed(w1, w2, b);
+        const datasetGenerator = new LinearlySeparableDatasetGenerator(datasetSize, 2);
+        return datasetGenerator.generateFixed(new Float64Array([w1, w2]), b);
     }, [ready, datasetSize, w1, w2, b]);
 
     if (!ready) return <div>Loading WASM...</div>;
@@ -102,16 +102,16 @@ function App() {
             <Plot
                 data={[
                     {
-                        x: positivePoints.map((p) => p.x1),
-                        y: positivePoints.map((p) => p.x2),
+                        x: positivePoints.map((p) => p.data_point.features[0]),
+                        y: positivePoints.map((p) => p.data_point.features[1]),
                         mode: "markers",
                         type: "scatter",
                         name: "Label +1",
                         marker: {color: "light-blue", size: 6, symbol: "cross"},
                     },
                     {
-                        x: negativePoints.map((p) => p.x1),
-                        y: negativePoints.map((p) => p.x2),
+                        x: negativePoints.map((p) => p.data_point.features[0]),
+                        y: negativePoints.map((p) => p.data_point.features[1]),
                         mode: "markers",
                         type: "scatter",
                         name: "Label -1",
