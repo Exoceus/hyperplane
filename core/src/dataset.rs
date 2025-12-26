@@ -3,6 +3,7 @@ use rand::SeedableRng;
 use wasm_bindgen::prelude::*;
 
 use crate::structs;
+use crate::utils;
 
 #[wasm_bindgen]
 pub struct LinearlySeparableDatasetGenerator {
@@ -55,7 +56,7 @@ impl LinearlySeparableDatasetGenerator {
             ); // generate random point
 
             // Determine label based on which side of the line the point is on
-            let value = datapoint.dot(coefficients) + b;
+            let value = utils::dot(&datapoint.features, coefficients) + b;
             let label = if value >= 0.0 { 1 } else { -1 };
 
             dataset.push(structs::LabelledDataPoint::new(datapoint, label));
