@@ -15,12 +15,22 @@ pub struct Perceptron {
 
 #[derive(Tsify, Debug, Clone, Serialize, Deserialize)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct PerceptronSteps {
+pub struct PerceptronStep {
+    epoch: usize,
     weights: Vec<f64>,
     bias: f64,
 }
 
+#[derive(Tsify, Debug, Clone, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct PerceptronResult {
+    pub steps: Vec<PerceptronStep>,
+    pub converged: bool,
+}
+
+#[wasm_bindgen]
 impl Perceptron {
+    #[wasm_bindgen(constructor)]
     pub fn new(margin: f64, weights: Vec<f64>, bias: f64, max_epochs: usize) -> Self {
         Self {
             margin,
@@ -30,15 +40,17 @@ impl Perceptron {
         }
     }
 
-    pub fn train(&mut self, data: &[structs::LabelledDataPoint]) -> Vec<PerceptronSteps> {
+    #[wasm_bindgen]
+    pub fn train(&mut self, data: Vec<structs::LabelledDataPoint>) -> PerceptronResult {
         let mut steps = Vec::new();
 
-        steps.push(PerceptronSteps {
+        steps.push(PerceptronStep {
+            epoch: 0,
             weights: self.weights.clone(),
             bias: self.bias.clone(),
         });
 
-        for _ in 1..=self.max_epochs {
+        for epoch in 1..=self.max_epochs {
             let mut encountered_mislabelled_point = false;
 
             for i in 0..data.len() {
@@ -52,12 +64,13 @@ impl Perceptron {
 
                     self.weights = utils::add(
                         &self.weights,
-                        &utils::scale(data_point.label as f64, &self.weights),
+                        &utils::scale(data_point.label as f64, &data_point.data_point.features),
                     );
 
                     self.bias = self.bias + data_point.label as f64;
 
-                    steps.push(PerceptronSteps {
+                    steps.push(PerceptronStep {
+                        epoch: epoch,
                         weights: self.weights.clone(),
                         bias: self.bias.clone(),
                     });
@@ -66,11 +79,17 @@ impl Perceptron {
             }
 
             if !encountered_mislabelled_point {
-                break;
+                return PerceptronResult {
+                    steps: steps,
+                    converged: true,
+                };
             }
         }
 
-        steps
+        return PerceptronResult {
+            steps: steps,
+            converged: false,
+        };
     }
 
     pub fn prediction(&self, data_point: &structs::DataPoint) -> f64 {
