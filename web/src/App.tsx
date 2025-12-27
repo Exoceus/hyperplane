@@ -2,7 +2,7 @@ import {useEffect, useState} from "react";
 import Plot from "react-plotly.js";
 import "./App.css";
 import image from "./assets/logo.png";
-import init, {LinearlySeparableDatasetGenerator, Perceptron, type PerceptronSteps} from "./wasm";
+import init, {LinearlySeparableDatasetGenerator, Perceptron, type PerceptronStep} from "./wasm";
 
 type ModelType = null | "perceptron";
 
@@ -25,7 +25,7 @@ function App() {
     const [perceptronW2, setPerceptronW2] = useState(0);
     const [perceptronB, setPerceptronB] = useState(0);
     const [maxEpochs, setMaxEpochs] = useState(50);
-    const [trainingSteps, setTrainingSteps] = useState<PerceptronSteps[]>([]);
+    const [trainingSteps, setTrainingSteps] = useState<PerceptronStep[]>([]);
     const [currentTrainingIter, setCurrentTrainingIter] = useState(0);
     const [isTraining, setIsTraining] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
