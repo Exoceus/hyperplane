@@ -1,6 +1,6 @@
 # Hyperplane
 
-Visualize and interact with ML algorithms
+Visualize and interact with ML algorithms. Try it yourself: [hyperplane.jatinm.com](https://hyperplane.jatinm.com/)
 
 ## Install
 
