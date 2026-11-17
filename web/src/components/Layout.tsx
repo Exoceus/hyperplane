@@ -35,7 +35,7 @@ export function Layout({children}: {children: ReactNode}) {
                     </Link>
                     <nav className="site-nav">
                         <NavLink to="/" end>
-                            Lessons
+                            Playgrounds
                         </NavLink>
                         <a href={REPO} target="_blank" rel="noreferrer">
                             GitHub

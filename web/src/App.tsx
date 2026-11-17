@@ -1,21 +1,17 @@
 import {Suspense, use, useEffect} from "react";
-import {Route, Routes, useLocation} from "react-router";
+import {Navigate, Route, Routes, useLocation, useParams} from "react-router";
 import {Layout} from "./components/Layout";
 import {Loading} from "./components/Loading";
 import {wasmReady} from "./lib/wasm";
 import Home from "./pages/Home";
-import LessonPage from "./pages/LessonPage";
 import NotFound from "./pages/NotFound";
+import PlaygroundPage from "./pages/PlaygroundPage";
 
 function ScrollToTop() {
-    const {pathname, hash} = useLocation();
+    const {pathname} = useLocation();
     useEffect(() => {
-        if (hash) {
-            document.getElementById(hash.slice(1))?.scrollIntoView();
-        } else {
-            window.scrollTo(0, 0);
-        }
-    }, [pathname, hash]);
+        window.scrollTo(0, 0);
+    }, [pathname]);
     return null;
 }
 
@@ -23,6 +19,12 @@ function ScrollToTop() {
 function WasmGate({children}: {children: React.ReactNode}) {
     use(wasmReady);
     return children;
+}
+
+/** Old /learn/:slug links keep working. */
+function LegacyRedirect() {
+    const {slug} = useParams();
+    return <Navigate to={`/play/${slug}`} replace />;
 }
 
 export default function App() {
@@ -33,7 +35,8 @@ export default function App() {
                 <WasmGate>
                     <Routes>
                         <Route path="/" element={<Home />} />
-                        <Route path="/learn/:slug" element={<LessonPage />} />
+                        <Route path="/play/:slug" element={<PlaygroundPage />} />
+                        <Route path="/learn/:slug" element={<LegacyRedirect />} />
                         <Route path="*" element={<NotFound />} />
                     </Routes>
                 </WasmGate>

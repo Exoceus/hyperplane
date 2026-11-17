@@ -7,7 +7,7 @@ export default function NotFound() {
             <h1>This point is off the plane.</h1>
             <p>The page you are looking for doesn’t exist (yet).</p>
             <Link className="btn btn-primary" to="/">
-                Back to lessons
+                Back to playgrounds
             </Link>
         </div>
     );

@@ -36,7 +36,7 @@ const FONTS = {
 /**
  * Thin wrapper around a 2D canvas context that speaks *data* coordinates.
  * Every figure draws through one of these, so the visual language (point
- * style, arrows, grids, heatmaps) stays consistent across lessons.
+ * style, arrows, grids, heatmaps) stays consistent across playgrounds.
  */
 export class Painter {
     readonly ctx: CanvasRenderingContext2D;

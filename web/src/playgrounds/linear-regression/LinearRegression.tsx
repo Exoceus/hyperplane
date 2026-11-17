@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react";
 import {Button, Legend, Meter, Player, Slider, Stat, Stats, Toggle} from "../../components/Controls";
-import {Callout, Figure, FigureLayout, Panel} from "../../components/Figure";
+import {FigureLayout, Panel} from "../../components/Figure";
+import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
@@ -19,8 +20,15 @@ const SQ_VIEW: View = {xmin: -1.35, xmax: 1.35, ymin: -1.05, ymax: 1.05};
 const XL = -1.15;
 const XR = 1.15;
 
-function SquaresFigure() {
-    const [data, setData] = useState(() => make_regression(9, 0.55, 0.05, 0.28, 0, 4));
+function SquaresFigure({outlier = false}: {outlier?: boolean}) {
+    const [data, setData] = useState<Float64Array>(() => {
+        const base = make_regression(9, 0.55, 0.05, 0.28, 0, 4);
+        if (!outlier) return base;
+        const out = base.slice();
+        out[2 * 7] = 0.75;
+        out[2 * 7 + 1] = -0.9;
+        return out;
+    });
     const [line, animateLine, setLine] = useTween([-0.5, 0.6], 0.7); // [yL, yR] at x = XL, XR
     const [drag, setDrag] = useState<{kind: "point"; i: number} | {kind: "handle"; side: 0 | 1} | null>(null);
     const [showSquares, setShowSquares] = useState(true);
@@ -58,7 +66,7 @@ function SquaresFigure() {
     };
 
     return (
-        <Figure n={1} title="Least squares, literally" hint="Drag the handles on the line, or drag the points">
+        <Instrument hint="Drag the handles on the line, or drag the points">
             <FigureLayout
                 main={
                     <Plot
@@ -122,7 +130,7 @@ function SquaresFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -135,10 +143,10 @@ const PARAM_VIEW: View = {xmin: -1.6, xmax: 2.4, ymin: -2.1, ymax: 1.9};
 const GRID = 140;
 const STEPS = 200;
 
-function LandscapeFigure() {
+function LandscapeFigure(props: {lr?: number; center?: boolean}) {
     const [seed, setSeed] = useState(12);
-    const [center, setCenter] = useState(false);
-    const [lr, setLr] = useState(0.25);
+    const [center, setCenter] = useState(props.center ?? false);
+    const [lr, setLr] = useState(props.lr ?? 0.25);
     const [start, setStart] = useState({m: -1.1, b: 1.4});
     const [dragging, setDragging] = useState(false);
 
@@ -203,7 +211,7 @@ function LandscapeFigure() {
     };
 
     return (
-        <Figure n={2} title="Two views of the same line" hint="Click or drag in parameter space to choose a starting line">
+        <Instrument hint="Click or drag in parameter space to choose a starting line">
             <div className="duo">
                 <Panel label="Data space" right={`ŷ = ${cur.m.toFixed(2)}x ${cur.b >= 0 ? "+" : "−"} ${Math.abs(cur.b).toFixed(2)}`}>
                     <Plot
@@ -273,7 +281,7 @@ function LandscapeFigure() {
                     </div>
                 </div>
             </div>
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -281,112 +289,68 @@ function LandscapeFigure() {
 // Lesson
 // ===========================================================================
 
+const SCENARIOS: Scenario[] = [
+    {
+        id: "by-eye",
+        title: "Fit by eye",
+        prompt: <>Drag the two white handles to make the total yellow area as small as you can, then hit <b>Snap to least squares</b> to see how close you got.</>,
+        render: () => <SquaresFigure />,
+    },
+    {
+        id: "outlier",
+        title: "One outlier",
+        prompt: <>One point sits far below the rest. Snap to least squares: its giant square drags the whole line toward it. Then drag that point back into line.</>,
+        render: () => <SquaresFigure outlier />,
+    },
+    {
+        id: "landscape",
+        title: "Walk the loss bowl",
+        prompt: <>Each line is one point in (m, b) space. Click anywhere on the loss surface to start gradient descent there and watch the line in data space follow.</>,
+        render: () => <LandscapeFigure />,
+    },
+    {
+        id: "too-big",
+        title: "Step too big",
+        prompt: <>The learning rate is just past the stability limit. Press play: each step overshoots the valley a little more, and the loss explodes.</>,
+        render: () => <LandscapeFigure lr={0.34} />,
+    },
+    {
+        id: "centered",
+        title: "Center the inputs",
+        prompt: <>Same data, but x is shifted to have mean zero. The long tilted valley becomes a round bowl, and gradient descent converges in a handful of steps.</>,
+        render: () => <LandscapeFigure center lr={0.9} />,
+    },
+];
+
 export default function LinearRegression() {
     return (
-        <>
-            <p>
-                You have a cloud of points and want the line that "best" runs through them. Every introductory statistics class gives the same answer: pick
-                the line that minimizes the <em>sum of squared errors</em>. But why squares, rather than plain distances or cubes? And how would a computer
-                actually find that line?
-            </p>
-            <p>
-                This lesson answers both questions with pictures. The second answer, <strong>gradient descent</strong>, is the same procedure that trains
-                nearly every model on this site, so linear regression is the right place to meet it.
-            </p>
-
-            <h2 id="model">The model and the error</h2>
-            <p>
-                Our model is a line with a slope <M>{"m"}</M> and an intercept <M>{"b"}</M>. For an input <M>{"x_i"}</M> it predicts{" "}
-                <M>{"\\hat y_i = m x_i + b"}</M>. The miss on each point is its <span className="c-red">residual</span>, the vertical gap{" "}
-                <M>{"r_i = y_i - \\hat y_i"}</M>. Least squares scores a line by
-            </p>
-            <MathBlock>{"\\text{SSE}(m, b) = \\sum_{i=1}^{n} \\red{r_i}^2 = \\sum_{i=1}^{n} \\big(y_i - (m x_i + b)\\big)^2"}</MathBlock>
-            <p>
-                A squared number is the area of a square. So "least squares" can be taken literally: draw a square on every residual, then move the line
-                until the <span className="c-yellow">total yellow area</span> is as small as possible.
-            </p>
-
-            <SquaresFigure />
-
-            <Callout kind="try">
-                Drag one point far away from the others. Its square grows with the <em>square</em> of the distance, so a single outlier can drag the whole
-                line toward it. That sensitivity is the price of using squares. Other losses, like absolute error, are more robust to outliers but lack
-                the smooth, closed-form solution you are about to see.
-            </Callout>
-
-            <h3>Why squares?</h3>
-            <p>Squares have three properties that make them the default choice:</p>
-            <ul>
-                <li>
-                    <strong>They are smooth.</strong> The loss is a polynomial in <M>{"m"}</M> and <M>{"b"}</M>, so it has a derivative everywhere and
-                    calculus can find its minimum exactly.
-                </li>
-                <li>
-                    <strong>They match Gaussian noise.</strong> If the data really is a line plus bell-curve noise, minimizing squared error gives the
-                    maximum-likelihood line.
-                </li>
-                <li>
-                    <strong>The solution is the mean.</strong> Fitting just a constant <M>{"\\hat y = b"}</M> with squared error gives{" "}
-                    <M>{"b = \\bar y"}</M>, the average. Least squares extends "take the average" to lines.
-                </li>
-            </ul>
-
-            <h2 id="landscape">A landscape of lines</h2>
-            <p>
-                Here is the shift in viewpoint that unlocks everything else. Each line is a single point <M>{"(m, b)"}</M> in a 2D{" "}
-                <strong>parameter space</strong>. Above every such point we can plot the mean squared error of that line,{" "}
-                <M>{"L(m, b) = \\tfrac{1}{n}\\,\\text{SSE}"}</M>. The result is a surface, and for squared error it is always a smooth bowl: a quadratic
-                in the parameters, whose level sets are ellipses.
-            </p>
-            <p>
-                The best line is the bottom of the bowl (<span className="c-green">★</span>). One way to get there is to stand somewhere on the surface and
-                repeatedly step <em>downhill</em>. The steepest downhill direction is the negative of the{" "}
-                <span className="c-red">gradient</span>:
-            </p>
-            <MathBlock>{"\\nabla L = \\begin{pmatrix} \\partial L / \\partial m \\\\ \\partial L / \\partial b \\end{pmatrix} = \\frac{2}{n}\\sum_{i=1}^n \\big(\\hat y_i - y_i\\big) \\begin{pmatrix} x_i \\\\ 1 \\end{pmatrix}, \\qquad \\begin{pmatrix} m \\\\ b \\end{pmatrix} \\leftarrow \\begin{pmatrix} m \\\\ b \\end{pmatrix} - \\yel{\\eta}\\, \\nabla L"}</MathBlock>
-            <p>
-                Each <span className="c-yellow">step</span> in parameter space nudges the line in data space. Points the line passes above pull it down,
-                and points it passes below pull it up. Points far to the side pull harder on the slope, because their residual is multiplied by{" "}
-                <M>{"x_i"}</M>.
-            </p>
-
-            <LandscapeFigure />
-
-            <Callout>
-                The data's <M>{"x"}</M>-values here sit far from zero, which makes the bowl a long, tilted, narrow valley. A step size small enough not to
-                overshoot across the valley is then painfully slow along it, so gradient descent zig-zags. Turn on <em>center the inputs</em>: the valley
-                becomes nearly round and the same algorithm converges in a handful of steps. This is why practitioners standardize features before
-                training. It changes the shape of the landscape, not the answer.
-            </Callout>
-
-            <h2 id="closed-form">The shortcut: solving for the bottom directly</h2>
-            <p>
-                For squared error we don't actually have to walk. The bottom of a bowl is where the gradient is zero. Setting both partial derivatives to
-                zero gives two linear equations, the <strong>normal equations</strong>, and their solution is
-            </p>
-            <MathBlock>{"m^\\ast = \\frac{\\sum_i (x_i - \\bar x)(y_i - \\bar y)}{\\sum_i (x_i - \\bar x)^2} = \\frac{\\operatorname{Cov}(x, y)}{\\operatorname{Var}(x)}, \\qquad b^\\ast = \\bar y - m^\\ast \\bar x"}</MathBlock>
-            <p>
-                The best line always passes through the center of mass <M>{"(\\bar x, \\bar y)"}</M>. Its slope is "how much <M>{"y"}</M> moves with{" "}
-                <M>{"x"}</M>" divided by "how much <M>{"x"}</M> moves at all". With many features, the same idea becomes the matrix formula{" "}
-                <M>{"\\mathbf{w}^\\ast = (X^\\top X)^{-1} X^\\top \\mathbf{y}"}</M>.
-            </p>
-            <p>
-                So why bother with gradient descent? Because the closed form only exists for this special case: squared error on a linear model. Change
-                the model to a neural network, or the loss to cross-entropy, and there is no formula, only the landscape. Walking downhill still works.
-            </p>
-
-            <section className="takeaways">
-                <h2>Takeaways</h2>
-                <ul>
-                    <li>Least squares minimizes the total area of squares drawn on the residuals. It is smooth and solvable, but outliers can drag it around.</li>
-                    <li>Every line is a point in parameter space, and the loss turns that space into a bowl-shaped landscape.</li>
-                    <li>
-                        Gradient descent repeatedly steps along <M>{"-\\nabla L"}</M>. The shape of the bowl, and therefore feature scaling, decides how
-                        fast it converges.
-                    </li>
-                    <li>For linear least squares, the bottom of the bowl has a closed form: the normal equations.</li>
-                </ul>
-            </section>
-        </>
+        <Playground
+            scenarios={SCENARIOS}
+            explainer={
+                <>
+                    <ul>
+                        <li>
+                            The model predicts <M>{"\\hat y = m x + b"}</M>. Least squares picks the line that minimizes the sum of squared residuals: the
+                            total area of the yellow squares.
+                        </li>
+                    </ul>
+                    <MathBlock>{"L(m, b) = \\frac1n \\sum_i \\big(y_i - (m x_i + b)\\big)^2"}</MathBlock>
+                    <ul>
+                        <li>
+                            In parameter space <M>{"L"}</M> is a quadratic bowl. Gradient descent steps along{" "}
+                            <M>{"-\\nabla L = -\\frac2n \\sum_i (\\hat y_i - y_i)\\,(x_i, 1)"}</M>.
+                        </li>
+                        <li>
+                            The bottom has a closed form, the normal equations: <M>{"m^\\ast = \\operatorname{Cov}(x,y)/\\operatorname{Var}(x)"}</M>,{" "}
+                            <M>{"b^\\ast = \\bar y - m^\\ast \\bar x"}</M>.
+                        </li>
+                        <li>
+                            Squaring makes the loss smooth and solvable, but it also makes outliers very influential. Uncentered inputs stretch the bowl into
+                            a narrow valley, which slows gradient descent down.
+                        </li>
+                    </ul>
+                </>
+            }
+        />
     );
 }

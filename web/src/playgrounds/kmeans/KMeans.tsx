@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react";
 import {Button, Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
-import {Callout, Figure, FigureLayout, Panel} from "../../components/Figure";
+import {FigureLayout, Panel} from "../../components/Figure";
+import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
@@ -39,14 +40,14 @@ function drawCentroid(p: Painter, x: number, y: number, color: string, highlight
 // Figure 1 — Lloyd's algorithm, phase by phase
 // ===========================================================================
 
-function LloydFigure() {
-    const [kind, setKind] = useState<Kind>("blobs");
-    const [blobs, setBlobs] = useState(4);
+function LloydFigure(props: {kind?: Kind; blobs?: number; k?: number; method?: number; init?: number[]}) {
+    const [kind, setKind] = useState<Kind>(props.kind ?? "blobs");
+    const [blobs, setBlobs] = useState(props.blobs ?? 4);
     const [seed, setSeed] = useState(6);
-    const [k, setK] = useState(4);
-    const [method, setMethod] = useState(2);
+    const [k, setK] = useState(props.k ?? 4);
+    const [method, setMethod] = useState(props.method ?? 2);
     const [initSeed, setInitSeed] = useState(3);
-    const [manual, setManual] = useState<Float64Array | null>(null);
+    const [manual, setManual] = useState<Float64Array | null>(props.init ? new Float64Array(props.init) : null);
     const [drag, setDrag] = useState<number | null>(null);
 
     const data = useMemo(() => generate(kind, blobs, seed), [kind, blobs, seed]);
@@ -140,7 +141,7 @@ function LloydFigure() {
     };
 
     return (
-        <Figure n={1} title="Lloyd's algorithm: assign, update, repeat" hint="Drag the ✛ centroids before pressing play">
+        <Instrument hint="Drag the ✛ centroids before pressing play">
             <FigureLayout
                 main={
                     <>
@@ -231,7 +232,7 @@ function LloydFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -263,7 +264,7 @@ function ElbowFigure() {
     }, [data, k, seed]);
 
     return (
-        <Figure n={2} title="How many clusters?" hint="Click the curve to choose k">
+        <Instrument hint="Click the curve to choose k">
             <div className="duo">
                 <Panel label={`k = ${k}`} right={`J = ${fit.j.toFixed(2)}`}>
                     <Plot
@@ -298,7 +299,7 @@ function ElbowFigure() {
                     </div>
                 </Panel>
             </div>
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -306,93 +307,71 @@ function ElbowFigure() {
 // Lesson
 // ===========================================================================
 
+const SCENARIOS: Scenario[] = [
+    {
+        id: "blobs",
+        title: "Four blobs",
+        prompt: <>Step through it. <b>Assign</b>: every point joins its nearest centroid (shaded regions). <b>Update</b>: every centroid jumps to the mean of its points. Repeat until nothing changes.</>,
+        render: () => <LloydFigure />,
+    },
+    {
+        id: "bad-start",
+        title: "Bad start",
+        prompt: <>All four centroids start huddled in one corner. Play it: k-means converges, but to a poor local minimum. Then switch the initialization to k-means++ and compare.</>,
+        render: () => <LloydFigure init={[-1.1, 1.1, -0.95, 1.15, -1.15, 0.95, -0.9, 0.95]} />,
+    },
+    {
+        id: "wrong-k",
+        title: "Wrong k",
+        prompt: <>Four real blobs, six centroids. k-means always returns exactly k clusters, so some blobs get split in two. Slide k to see the inertia trade-off.</>,
+        render: () => <LloydFigure k={6} method={1} />,
+    },
+    {
+        id: "moons",
+        title: "Moons break it",
+        prompt: <>Two obvious groups that aren't round. Nearest-centroid boundaries are always straight, so k-means slices right across both moons.</>,
+        render: () => <LloydFigure kind="moons" k={2} method={1} />,
+    },
+    {
+        id: "uniform",
+        title: "No structure at all",
+        prompt: <>Uniform noise, with no clusters to find. k-means still confidently carves it into k cells. A clustering always exists, even when it means nothing.</>,
+        render: () => <LloydFigure kind="uniform" k={5} method={1} />,
+    },
+    {
+        id: "elbow",
+        title: "How many clusters?",
+        prompt: <>Inertia always drops as k grows. Look for the elbow where adding clusters stops paying off, and click the curve to try each k.</>,
+        render: () => <ElbowFigure />,
+    },
+];
+
 export default function KMeans() {
     return (
-        <>
-            <p>
-                Every lesson so far had labels: each point arrived marked blue or orange, and the model learned to reproduce the marks. Often you have no
-                labels at all, only data, and the question becomes <em>is there structure here?</em> <strong>k-means</strong> is the classic first answer.
-                Tell it how many groups to look for, and it finds <M>{"k"}</M> centers that summarize the data as well as possible.
-            </p>
-
-            <h2 id="objective">What counts as a good clustering?</h2>
-            <p>
-                k-means represents each cluster by a single point, its <strong>centroid</strong> <M>{"\\boldsymbol\\mu_c"}</M>, and assigns each data point
-                to exactly one cluster. A clustering is good when every point sits close to its own centroid. Formally, it minimizes the total squared
-                distance, called the <strong>inertia</strong>:
-            </p>
-            <MathBlock>{"J = \\sum_{i=1}^n \\big\\lVert \\vx_i - \\boldsymbol\\mu_{c(i)} \\big\\rVert^2"}</MathBlock>
-            <p>
-                Here <M>{"c(i)"}</M> is the cluster of point <M>{"i"}</M>. Finding the very best clustering is NP-hard in general. But there is a simple
-                procedure that gets good answers fast: improve the assignments with the centroids fixed, then improve the centroids with the
-                assignments fixed, and repeat.
-            </p>
-
-            <h2 id="lloyd">Lloyd's algorithm</h2>
-            <ol>
-                <li>
-                    <strong>Assign.</strong> Hold the centroids still. The best cluster for each point is simply the nearest centroid. The plane splits
-                    into regions of "closest to centroid <M>{"c"}</M>", a <em>Voronoi diagram</em>, shaded below.
-                </li>
-                <li>
-                    <strong>Update.</strong> Hold the assignments still. For each cluster, the point minimizing total squared distance to its members is
-                    their <strong>mean</strong>, so every centroid jumps to the center of mass of its points.
-                </li>
-            </ol>
-
-            <LloydFigure />
-
-            <p>
-                Why must this stop? Each phase solves its half of the problem exactly, so neither can increase <M>{"J"}</M>. The inertia curve only ever
-                goes down. There are finitely many ways to assign <M>{"n"}</M> points to <M>{"k"}</M> clusters, and the algorithm never revisits an
-                assignment (that would require <M>{"J"}</M> to go back up), so it must eventually reach a step where nothing changes.
-            </p>
-
-            <Callout kind="try">
-                <ul>
-                    <li>
-                        With <em>Anywhere</em> initialization, re-initialize a few times. Sometimes two centroids end up sharing one blob while another
-                        blob has none. The algorithm converges, but to a <strong>local minimum</strong>. Lloyd's algorithm can't climb out, because doing so
-                        would require <M>{"J"}</M> to rise.
-                    </li>
-                    <li>
-                        Switch to <em>k-means++</em>, which picks each initial centroid from the data with probability proportional to its squared
-                        distance from the centroids chosen so far. Spreading the starts out makes bad local minima much rarer.
-                    </li>
-                </ul>
-            </Callout>
-
-            <h2 id="limits">What k-means assumes</h2>
-            <p>
-                Because each point simply goes to its nearest center, the boundaries between clusters are always straight lines (the edges of the Voronoi
-                cells). Each cluster is implicitly a round blob. Try <em>Moons</em> or <em>Rings</em>: the data has two obvious groups, but they aren't
-                round, and k-means slices straight through them. Try <em>Uniform</em>: k-means will still find <M>{"k"}</M> clusters, because it always
-                does, even when there is no structure at all.
-            </p>
-
-            <h2 id="choosing-k">Choosing k</h2>
-            <p>
-                You have to choose <M>{"k"}</M>, and the objective can't choose it for you. Inertia always drops as <M>{"k"}</M> grows, and it reaches
-                zero at <M>{"k = n"}</M>, with every point its own cluster. A common heuristic is the <strong>elbow</strong>: plot the best inertia for
-                each <M>{"k"}</M> and look for the bend where adding a cluster stops paying off.
-            </p>
-
-            <ElbowFigure />
-
-            <Callout kind="note" title="Beyond the elbow">
-                The elbow is often ambiguous. Other criteria, such as silhouette scores, the gap statistic, or a likelihood penalized by BIC in{" "}
-                <em>Gaussian mixture models</em>, give more principled answers. Mixture models also replace k-means' hard assignments with probabilities.
-            </Callout>
-
-            <section className="takeaways">
-                <h2>Takeaways</h2>
-                <ul>
-                    <li>k-means summarizes data with k centroids, minimizing the total squared distance from points to their centroid.</li>
-                    <li>Lloyd's algorithm alternates two exact half-steps, assign to the nearest and move to the mean, so inertia never increases and it always converges.</li>
-                    <li>It converges to a local minimum that depends on initialization. k-means++ helps.</li>
-                    <li>It assumes round, similarly sized clusters, and it needs k chosen in advance.</li>
-                </ul>
-            </section>
-        </>
+        <Playground
+            scenarios={SCENARIOS}
+            explainer={
+                <>
+                    <ul>
+                        <li>
+                            Represent each cluster by its centroid <M>{"\\boldsymbol\\mu_c"}</M> and minimize the total squared distance from points to their
+                            centroid (the inertia):
+                        </li>
+                    </ul>
+                    <MathBlock>{"J = \\sum_i \\big\\lVert \\vx_i - \\boldsymbol\\mu_{c(i)} \\big\\rVert^2"}</MathBlock>
+                    <ul>
+                        <li>
+                            <strong>Lloyd's algorithm</strong> alternates two exact half-steps: assign each point to its nearest centroid, then move each
+                            centroid to the mean of its points. Neither can increase <M>{"J"}</M>, so it always converges.
+                        </li>
+                        <li>
+                            It converges to a <em>local</em> minimum that depends on the start. k-means++ spreads the initial centroids out, which makes bad
+                            minima much rarer.
+                        </li>
+                        <li>Cluster boundaries are straight (Voronoi cells), so k-means assumes round, similarly sized clusters, and you have to choose k.</li>
+                    </ul>
+                </>
+            }
+        />
     );
 }

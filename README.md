@@ -1,12 +1,12 @@
 # Hyperplane
 
-Interactive, visual explanations of machine-learning algorithms. Drag the data, nudge the parameters, step through training, and build intuition for _why_ the math works. Try it: [hyperplane.jatinm.com](https://hyperplane.jatinm.com/)
+Interactive playgrounds for machine-learning algorithms. Drag the data, tweak the parameters, and run scenarios that show where each algorithm shines and where it breaks. Try it: [hyperplane.jatinm.com](https://hyperplane.jatinm.com/)
 
 Everything runs in the browser. The algorithms live in a Rust crate compiled to WebAssembly, and the UI is a static React site, so there is no server and nothing to pay for.
 
-## Lessons
+## Playgrounds
 
-| Track          | Lesson               | What you can play with                                                                   |
+| Category       | Playground           | Scenarios to try                                                                         |
 | -------------- | -------------------- | ---------------------------------------------------------------------------------------- |
 | Foundations    | Linear regression    | Residuals drawn as literal squares; the loss bowl in (m, b) space; feature centering      |
 | Foundations    | Gradient descent     | 1D step-size regimes; GD vs. momentum vs. RMSProp vs. Adam on five landscapes             |
@@ -28,16 +28,18 @@ core/   Rust crate → WebAssembly (wasm-bindgen). All numerical work:
 web/    Vite + React + TypeScript site.
         src/lib/painter.ts    canvas drawing in data coordinates
         src/components/       Plot, Figure, controls, KaTeX math, charts
-        src/lessons/          one folder per lesson + registry.ts
+        src/components/Playground.tsx   scenario presets + stage shell
+        src/playgrounds/      one folder per playground + registry.ts
 ```
 
 The JS/WASM boundary uses flat `Float64Array` buffers with documented strides (for example, labelled 2D data is `[x, y, class, …]`) instead of serialized objects. That keeps calls cheap enough to retrain models and repaint decision regions every animation frame.
 
-### Adding a lesson
+### Adding a playground
 
-1. Put any heavy computation in a new module in `core/src/` and export it with `#[wasm_bindgen]`. Add unit tests (`cargo test`).
-2. Create `web/src/lessons/<slug>/<Name>.tsx`. Build figures from `Figure`, `Plot`, the controls in `components/Controls.tsx`, and `useTimeline` for step-through animations.
-3. Register it in `web/src/lessons/registry.ts`.
+1. Put the algorithm in a new module in `core/src/`, export it with `#[wasm_bindgen]`, and add unit tests (`cargo test`).
+2. Create `web/src/playgrounds/<slug>/<Name>.tsx`. Build one or more *instruments* (interactive components built from `Plot`, the controls in `components/Controls.tsx`, and `useTimeline` for step-through animation) that accept preset props.
+3. Export a `<Playground scenarios={…} explainer={…} />`. Each scenario is a title, a one-line "try this" prompt, and a `render()` that returns a preset instrument.
+4. Register it in `web/src/playgrounds/registry.ts`.
 
 ## Development
 

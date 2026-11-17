@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react";
 import {Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
-import {Callout, Figure, FigureLayout} from "../../components/Figure";
+import {FigureLayout} from "../../components/Figure";
+import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
@@ -27,10 +28,10 @@ function regime(lr: number) {
     return {text: `each step multiplies x by ${r.toFixed(2)}: |factor| > 1, so it diverges`, color: C.red};
 }
 
-function OneDFigure() {
-    const [fi, setFi] = useState(0);
+function OneDFigure(props: {fn?: number; lr?: number}) {
+    const [fi, setFi] = useState(props.fn ?? 0);
     const fn = FUNCS[fi];
-    const [lr, setLr] = useState(0.15);
+    const [lr, setLr] = useState(props.lr ?? 0.15);
     const [x0, setX0] = useState(fn.x0);
     const curve = useMemo(() => func1d_curve(fn.id, fn.view.xmin, fn.view.xmax, 400), [fn]);
     const traj = useMemo(() => gd1d(fn.id, x0, lr, 60), [fn, x0, lr]);
@@ -53,7 +54,7 @@ function OneDFigure() {
     };
 
     return (
-        <Figure n={1} title="Rolling downhill, one step at a time" hint="Click anywhere on the plot to move the starting point">
+        <Instrument hint="Click anywhere on the plot to move the starting point">
             <FigureLayout
                 main={
                     <Plot
@@ -112,7 +113,7 @@ function OneDFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -182,8 +183,8 @@ const OPTIMIZERS = [
 const G = 150;
 const STEPS = 400;
 
-function RaceFigure() {
-    const [si, setSi] = useState(0);
+function RaceFigure({surface = 0}: {surface?: number}) {
+    const [si, setSi] = useState(surface);
     const surf = SURFACES[si];
     const [start, setStart] = useState<[number, number]>(surf.start);
     const [lrs, setLrs] = useState<number[]>(surf.lr);
@@ -250,7 +251,7 @@ function RaceFigure() {
     }).filter((_, i) => enabled[i]);
 
     return (
-        <Figure n={2} title="Four optimizers, one landscape" hint="Click anywhere to drop the optimizers there">
+        <Instrument hint="Click anywhere to drop the optimizers there">
             <FigureLayout
                 sideWidth={300}
                 main={
@@ -334,7 +335,7 @@ function RaceFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -342,114 +343,85 @@ function RaceFigure() {
 // Lesson
 // ===========================================================================
 
+const SCENARIOS: Scenario[] = [
+    {
+        id: "valley",
+        title: "Narrow valley",
+        prompt: (
+            <>
+                Plain <b>gradient descent</b> (white) zig-zags across the valley because the steepest direction points across it, not along it.{" "}
+                <span className="c-blue">Momentum</span> and <span className="c-pink">Adam</span> cut through. Click anywhere to restart from there.
+            </>
+        ),
+        render: () => <RaceFigure surface={0} />,
+    },
+    {
+        id: "rosenbrock",
+        title: "Banana valley",
+        prompt: <>The Rosenbrock function: easy to fall into the curved valley, slow to follow it to the minimum at (1, 1). Who gets there first?</>,
+        render: () => <RaceFigure surface={1} />,
+    },
+    {
+        id: "four-minima",
+        title: "Four minima",
+        prompt: <>Four equally good minima. Click different starting points near the middle: which basin each optimizer lands in depends on where it starts.</>,
+        render: () => <RaceFigure surface={2} />,
+    },
+    {
+        id: "saddle",
+        title: "Escape the saddle",
+        prompt: <>The start sits almost exactly on a saddle's ridge, where the gradient barely points anywhere. Watch who escapes first.</>,
+        render: () => <RaceFigure surface={3} />,
+    },
+    {
+        id: "egg-crate",
+        title: "Bumpy landscape",
+        prompt: <>Lots of local minima. Gradient descent stops in the first dip. Can momentum carry an optimizer over the bumps toward the center?</>,
+        render: () => <RaceFigure surface={4} />,
+    },
+    {
+        id: "overshoot",
+        title: "Overshoot (1D)",
+        prompt: <>On a parabola each step multiplies x by 1 − 2η. Slide η past 0.5 to oscillate, and past 1 to diverge. Try exactly 0.5.</>,
+        render: () => <OneDFigure fn={0} lr={0.8} />,
+    },
+    {
+        id: "local-min",
+        title: "Stuck in a dip (1D)",
+        prompt: <>Starting on the right, gradient descent settles into the shallower well and never finds the deeper one on the left. Click to start elsewhere.</>,
+        render: () => <OneDFigure fn={1} lr={0.05} />,
+    },
+];
+
 export default function GradientDescent() {
     return (
-        <>
-            <p>
-                Nearly every model in machine learning is trained the same way. Write down a number, the <strong>loss</strong>, that measures how wrong
-                the model is. Then adjust the parameters, a little at a time, in whichever direction makes that number smaller. That is{" "}
-                <strong>gradient descent</strong>. It is easy to state, and full of surprises once you actually run it.
-            </p>
-
-            <h2 id="one-d">The idea in one dimension</h2>
-            <p>
-                Picture a ball on a curve <M>{"f(x)"}</M>. The derivative <M>{"\\pnk{f'(x)}"}</M> is the slope of the{" "}
-                <span className="c-pink">tangent line</span>: positive means uphill to the right, negative means uphill to the left. To go downhill, move
-                against the slope:
-            </p>
-            <MathBlock label="gradient descent">{"x_{t+1} = x_t - \\yel{\\eta}\\, \\pnk{f'(x_t)}"}</MathBlock>
-            <p>
-                The <span className="c-yellow">learning rate</span> <M>{"\\eta"}</M> sets how far each step goes. Note that the step is proportional to the
-                slope: steep ground means big steps, and flat ground means tiny ones.
-            </p>
-
-            <OneDFigure />
-
-            <p>
-                The parabola <M>{"f(x) = x^2"}</M> lets us do the whole analysis exactly. Its derivative is <M>{"2x"}</M>, so one step gives
-            </p>
-            <MathBlock>{"x_{t+1} = x_t - \\eta \\cdot 2x_t = (1 - 2\\eta)\\, x_t \\quad\\Longrightarrow\\quad x_t = (1 - 2\\eta)^t\\, x_0"}</MathBlock>
-            <p>Everything depends on the factor <M>{"1 - 2\\eta"}</M>:</p>
-            <ul>
-                <li>
-                    <M>{"0 < \\eta < \\tfrac12"}</M>: the factor is between 0 and 1. The ball slides smoothly to the bottom.
-                </li>
-                <li>
-                    <M>{"\\eta = \\tfrac12"}</M>: the factor is 0. One perfect step lands exactly on the minimum.
-                </li>
-                <li>
-                    <M>{"\\tfrac12 < \\eta < 1"}</M>: the factor is negative but smaller than 1 in size. Each step overshoots to the other side, by less
-                    each time.
-                </li>
-                <li>
-                    <M>{"\\eta > 1"}</M>: overshoots grow and the iterates <span className="c-red">diverge</span> to infinity.
-                </li>
-            </ul>
-            <p>
-                In general, the critical learning rate depends on the <em>curvature</em> <M>{"f''"}</M>. Gradient descent is stable when{" "}
-                <M>{"\\eta < 2 / f''"}</M>, so sharply curved valleys demand small steps.
-            </p>
-
-            <Callout kind="try">
-                <ul>
-                    <li>On the double well, start on the right. Gradient descent rolls into the nearer, shallower dip and stays there. It is a local method and only sees the slope where it stands.</li>
-                    <li>
-                        On the plateau, start far out. The slope is almost zero there, so steps are tiny and progress crawls. Flat regions, or{" "}
-                        <em>vanishing gradients</em>, are a real obstacle when training deep networks.
-                    </li>
-                </ul>
-            </Callout>
-
-            <h2 id="two-d">Two dimensions: the gradient</h2>
-            <p>
-                With two parameters the loss is a landscape <M>{"f(x, y)"}</M>, and the slope becomes a vector, the <strong>gradient</strong>:
-            </p>
-            <MathBlock>{"\\nabla f = \\begin{pmatrix} \\partial f / \\partial x \\\\ \\partial f / \\partial y \\end{pmatrix}"}</MathBlock>
-            <p>
-                It points in the direction of steepest ascent, and it is always <strong>perpendicular to the contour lines</strong>. Hover over the
-                landscape below to see the <span className="c-red">downhill direction</span> next to the local contour (dashed). Following{" "}
-                <M>{"-\\nabla f"}</M> blindly is plain gradient descent. Its weakness is that steepest isn't the same as shortest: in a narrow valley, the
-                steepest direction points mostly <em>across</em> the valley rather than along it.
-            </p>
-            <h3>Three fixes</h3>
-            <p>
-                <strong className="c-blue">Momentum</strong> treats the parameters like a heavy ball. It accumulates a velocity, so zig-zags that point in
-                alternating directions cancel out, and steps along the valley floor add up:
-            </p>
-            <MathBlock>{"\\vv \\leftarrow \\beta\\, \\vv + \\nabla f, \\qquad \\theta \\leftarrow \\theta - \\eta\\, \\vv \\qquad (\\beta \\approx 0.9)"}</MathBlock>
-            <p>
-                <strong className="c-green">RMSProp</strong> rescales each coordinate by a running average of its squared gradients. Directions that are
-                consistently steep get smaller steps, and flat directions get larger ones:
-            </p>
-            <MathBlock>{"\\mathbf{s} \\leftarrow \\rho\\, \\mathbf{s} + (1 - \\rho)\\, (\\nabla f)^2, \\qquad \\theta \\leftarrow \\theta - \\eta\\, \\frac{\\nabla f}{\\sqrt{\\mathbf{s}} + \\epsilon}"}</MathBlock>
-            <p>
-                <strong className="c-pink">Adam</strong> combines the two: momentum on the gradient and RMSProp-style scaling, with a correction for the
-                first few steps. It is the default optimizer for most deep learning.
-            </p>
-
-            <RaceFigure />
-
-            <Callout>
-                There is no universally best optimizer. Adam's per-coordinate scaling makes it robust to badly scaled problems. The same scaling also makes
-                its steps roughly the size of <M>{"\\eta"}</M>, regardless of how small the gradient is, so it can rattle around a minimum instead of
-                settling. Momentum can roll right out of a good valley. The landscape decides which one wins.
-            </Callout>
-
-            <section className="takeaways">
-                <h2>Takeaways</h2>
-                <ul>
-                    <li>
-                        Gradient descent steps against the slope: <M>{"\\theta \\leftarrow \\theta - \\eta \\nabla f"}</M>. It only sees the local slope
-                        and can stop in any local minimum.
-                    </li>
-                    <li>
-                        The learning rate must fit the curvature. Too small and progress crawls, too large and the iterates oscillate or diverge. For{" "}
-                        <M>{"x^2"}</M> the boundary is exactly <M>{"\\eta = 1"}</M>.
-                    </li>
-                    <li>The gradient is perpendicular to the contours, which is why narrow valleys cause zig-zagging.</li>
-                    <li>Momentum, RMSProp and Adam reshape the steps to cope with valleys, plateaus and saddles.</li>
-                </ul>
-            </section>
-        </>
+        <Playground
+            scenarios={SCENARIOS}
+            explainer={
+                <>
+                    <ul>
+                        <li>Gradient descent repeatedly steps against the gradient, which is perpendicular to the contour lines:</li>
+                    </ul>
+                    <MathBlock>{"\\theta \\leftarrow \\theta - \\eta\\, \\nabla f(\\theta)"}</MathBlock>
+                    <ul>
+                        <li>
+                            <strong className="c-blue">Momentum</strong> accumulates a velocity <M>{"\\vv \\leftarrow \\beta\\vv + \\nabla f"}</M> and steps
+                            along <M>{"-\\eta\\vv"}</M>. Zig-zags cancel out and consistent directions add up.
+                        </li>
+                        <li>
+                            <strong className="c-green">RMSProp</strong> divides each coordinate by a running RMS of its gradients. Steep directions get
+                            smaller steps.
+                        </li>
+                        <li>
+                            <strong className="c-pink">Adam</strong> combines both, with bias correction. Its steps are roughly <M>{"\\eta"}</M> in size no
+                            matter how small the gradient is.
+                        </li>
+                        <li>
+                            Stability depends on curvature: on <M>{"f = x^2"}</M> plain gradient descent converges only for <M>{"\\eta < 1"}</M>.
+                        </li>
+                    </ul>
+                </>
+            }
+        />
     );
 }

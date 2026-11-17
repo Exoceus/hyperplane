@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react";
-import {Link} from "react-router";
 import {Button, Icon, Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
-import {Callout, Figure, FigureLayout, Panel} from "../../components/Figure";
+import {FigureLayout, Panel} from "../../components/Figure";
+import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot} from "../../components/Plot";
@@ -58,7 +58,7 @@ function NeuronFigure() {
     const curveView: View = {xmin: -4, xmax: 4, ymin: A.range[0] - 0.3, ymax: A.range[1] + 0.3};
 
     return (
-        <Figure n={1} title="A single neuron: a weighted sum, then a bend" hint="Hover the plane to trace a point through the neuron">
+        <Instrument hint="Hover the plane to trace a point through the neuron">
             <FigureLayout
                 main={
                     <Plot
@@ -112,7 +112,7 @@ function NeuronFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -150,12 +150,12 @@ function inputImage(axis: 0 | 1): HTMLCanvasElement {
     return heatImage(vals, GRID_NEURON, GRID_NEURON, (t) => probabilityColor(t, 0.55));
 }
 
-function PlaygroundFigure() {
-    const [shape, setShape] = useState<Shape>("spiral");
-    const [noise, setNoise] = useState(0.1);
+function PlaygroundFigure(props: {shape?: Shape; layers?: number[]; act?: number; noise?: number}) {
+    const [shape, setShape] = useState<Shape>(props.shape ?? "spiral");
+    const [noise, setNoise] = useState(props.noise ?? 0.1);
     const [dataSeed, setDataSeed] = useState(3);
-    const [layers, setLayers] = useState<number[]>([8, 8]);
-    const [act, setAct] = useState(0);
+    const [layers, setLayers] = useState<number[]>(props.layers ?? [8, 8]);
+    const [act, setAct] = useState(props.act ?? 0);
     const [lr, setLr] = useState(0.02);
     const [running, setRunning] = useState(false);
     const [netSeed, setNetSeed] = useState(1);
@@ -233,7 +233,7 @@ function PlaygroundFigure() {
     const status = frame ? `step ${frame.steps} · loss ${frame.loss.toFixed(3)} · accuracy ${Math.round(frame.acc * 100)}%` : "";
 
     return (
-        <Figure n={2} title="A network you can train" hint="Press play, then change the architecture and try again">
+        <Instrument hint="Press play, then change the architecture and try again">
             <div ref={ref}>
                 <FigureLayout
                     sideWidth={300}
@@ -356,7 +356,7 @@ function PlaygroundFigure() {
                     }
                 />
             </div>
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -482,8 +482,8 @@ class WarpSim {
     }
 }
 
-function WarpFigure() {
-    const [shape, setShape] = useState<"moons" | "xor" | "circles">("moons");
+function WarpFigure(props: {shape?: "moons" | "xor" | "circles"}) {
+    const [shape, setShape] = useState<"moons" | "xor" | "circles">(props.shape ?? "moons");
     const [seed, setSeed] = useState(4);
     const [warp, setWarp] = useState<Warp | null>(null);
     const [ref, visible] = useInView<HTMLDivElement>();
@@ -566,7 +566,7 @@ function WarpFigure() {
     const layerName = t < 0.02 ? "input space" : t > HIDDEN - 0.02 ? `after hidden layer ${HIDDEN}: a straight line now separates the classes` : `between layer ${l0} and ${l0 + 1}`;
 
     return (
-        <Figure n={3} title="Each layer bends the plane" hint="Press play to morph through the layers">
+        <Instrument hint="Press play to morph through the layers">
             <div ref={ref}>
                 <FigureLayout
                     main={
@@ -645,7 +645,7 @@ function WarpFigure() {
                     }
                 />
             </div>
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -653,87 +653,76 @@ function WarpFigure() {
 // Lesson
 // ===========================================================================
 
+const SCENARIOS: Scenario[] = [
+    {
+        id: "spiral",
+        title: "Untangle a spiral",
+        prompt: <>Press play. Each little square is one neuron's response over the whole plane. Watch the simple early-layer edges combine into the spiral.</>,
+        render: () => <PlaygroundFigure />,
+    },
+    {
+        id: "three-neurons",
+        title: "Fence in a circle",
+        prompt: <>One hidden layer with just 3 neurons, so 3 lines. That is exactly enough to fence in the center. Try 2 neurons and watch it fail.</>,
+        render: () => <PlaygroundFigure shape="circles" layers={[3]} />,
+    },
+    {
+        id: "linear",
+        title: "No nonlinearity",
+        prompt: <>Linear activations: however many layers you stack, the boundary stays straight, so XOR is impossible. Switch the activation to tanh or ReLU and train again.</>,
+        render: () => <PlaygroundFigure shape="xor" act={3} layers={[8, 8]} />,
+    },
+    {
+        id: "relu",
+        title: "ReLU folds",
+        prompt: <>ReLU networks build boundaries from straight folds, so you get polygonal edges instead of smooth curves.</>,
+        render: () => <PlaygroundFigure shape="moons" act={1} layers={[6, 6]} noise={0.15} />,
+    },
+    {
+        id: "bend",
+        title: "Layers bend space",
+        prompt: <>A 2-2-2-2-1 network, so every layer is a plane you can draw. Press play to watch the data move through the layers until a straight line separates it.</>,
+        render: () => <WarpFigure />,
+    },
+    {
+        id: "rings",
+        title: "Rings can't be untangled",
+        prompt: <>With only two neurons per layer, the network can stretch and squeeze the plane but not tear it. The inner disc can't escape the ring around it. Compare XOR.</>,
+        render: () => <WarpFigure shape="circles" />,
+    },
+    {
+        id: "neuron",
+        title: "One neuron",
+        prompt: <>A single neuron: a weighted sum (a tilted ramp across the plane), then an activation that bends it into a soft step or a fold. Hover to trace a point.</>,
+        render: () => <NeuronFigure />,
+    },
+];
+
 export default function NeuralNetworks() {
     return (
-        <>
-            <p>
-                Every model so far drew a <em>straight</em> boundary. Real data rarely cooperates: one class wraps around another, or spirals through it,
-                and no single line will do. Neural networks solve this by stacking many simple units. One unit is just logistic regression. A layer of
-                them redraws the space, and a stack of layers can bend the plane until a straight line is enough.
-            </p>
-
-            <h2 id="neuron">One neuron</h2>
-            <p>
-                A neuron computes a weighted sum of its inputs, then passes it through a nonlinear <strong>activation function</strong>:
-            </p>
-            <MathBlock>{"a = f(z), \\qquad z = \\yel{w_1} x_1 + \\yel{w_2} x_2 + b"}</MathBlock>
-            <p>
-                Over the input plane, <M>{"z"}</M> is a tilted ramp. It is zero along a line, positive on the side <M>{"\\vw"}</M> points to, and
-                negative on the other. The activation reshapes that ramp. A sigmoid or tanh turns it into a soft step across the line, and ReLU turns it
-                into a fold: flat on one side, rising on the other.
-            </p>
-
-            <NeuronFigure />
-
-            <h2 id="layers">Layers of neurons</h2>
-            <p>
-                Put several neurons side by side and each one sees the same input with its own line. That is a <strong>layer</strong>. Feed the layer's
-                outputs into another layer and the second layer can combine the first layer's steps and folds into curves, wedges and islands. In matrix
-                form, a network with two hidden layers computes
-            </p>
-            <MathBlock>{"\\mathbf{h}_1 = f(W_1 \\vx + \\mathbf{b}_1), \\quad \\mathbf{h}_2 = f(W_2 \\mathbf{h}_1 + \\mathbf{b}_2), \\quad \\hat p = \\sigma(\\mathbf{w}_3 \\cdot \\mathbf{h}_2 + b_3)"}</MathBlock>
-            <p>
-                It is trained exactly like logistic regression: minimize cross-entropy with <Link to="/learn/gradient-descent">gradient descent</Link>. The
-                gradient for every weight comes from <strong>backpropagation</strong>, the chain rule applied layer by layer from the output back to the
-                input. In the diagram below, each small square shows what one neuron responds to across the whole input plane. Connections are{" "}
-                <span className="c-blue">blue</span> for positive weights and <span className="c-orange">orange</span> for negative ones, thicker when
-                larger.
-            </p>
-
-            <PlaygroundFigure />
-
-            <Callout kind="try">
-                <ul>
-                    <li>Circles with a single hidden layer of 3 neurons: three lines are just enough to fence in the center.</li>
-                    <li>Spiral with one tiny layer, then with 2–3 layers of 8 neurons. Depth helps on tangled data.</li>
-                    <li>
-                        Switch the activation to <em>linear</em>. However many layers you add, the boundary stays straight, because a composition of linear
-                        maps is still linear. The nonlinearity is what makes depth worth having.
-                    </li>
-                </ul>
-            </Callout>
-
-            <h2 id="bending">What the layers actually do</h2>
-            <p>
-                There is a geometric way to see all this. Each layer applies an affine map <M>{"W\\vx + \\mathbf{b}"}</M>, which rotates, stretches,
-                shears and shifts the plane, and then the activation squashes it. Tanh pushes everything into a square with soft walls. Applied in
-                sequence, these operations <em>bend</em> the plane. The output neuron is only logistic regression, so it can only draw a straight line. The
-                hidden layers' job is to deform the data until a straight line is enough.
-            </p>
-            <p>
-                The network below is deliberately narrow, with every hidden layer only two neurons wide, so each intermediate representation is a 2D
-                plane we can draw. Watch the grid lines and the data move as the transformation is applied one layer at a time. The curved{" "}
-                <span style={{color: C.white}}>white boundary</span> in input space is carried along, and by the last layer it has become a straight
-                line.
-            </p>
-
-            <WarpFigure />
-
-            <Callout>
-                Try <em>circles</em>. Two neurons per layer gives a continuous deformation of the plane, and no continuous deformation of a 2D plane can
-                pull the inner disc out of the ring around it without tearing. The network can squeeze and stretch, but it cannot untangle. Give it a
-                third dimension (a layer of width 3) and the inner disc can be lifted out, like a coin off a table. Width matters, not only depth.
-            </Callout>
-
-            <section className="takeaways">
-                <h2>Takeaways</h2>
-                <ul>
-                    <li>A neuron is a linear score followed by a nonlinearity: a soft step (sigmoid, tanh) or a fold (ReLU) along a line.</li>
-                    <li>Layers compose these pieces into curved, flexible boundaries, trained end-to-end with gradient descent and backpropagation.</li>
-                    <li>Without nonlinear activations, any stack of layers collapses into a single linear model.</li>
-                    <li>Geometrically, hidden layers bend space so that the classes become linearly separable for the final layer.</li>
-                </ul>
-            </section>
-        </>
+        <Playground
+            scenarios={SCENARIOS}
+            explainer={
+                <>
+                    <ul>
+                        <li>A neuron computes a weighted sum and applies a nonlinearity. A layer is many neurons reading the same input:</li>
+                    </ul>
+                    <MathBlock>{"\\mathbf{h}_1 = f(W_1\\vx + \\mathbf{b}_1), \\quad \\mathbf{h}_2 = f(W_2\\mathbf{h}_1 + \\mathbf{b}_2), \\quad \\hat p = \\sigma(\\mathbf{w}_3\\cdot\\mathbf{h}_2 + b_3)"}</MathBlock>
+                    <ul>
+                        <li>
+                            Training minimizes cross-entropy by gradient descent (Adam here). <strong>Backpropagation</strong> computes every gradient with
+                            the chain rule, from the output layer back to the input.
+                        </li>
+                        <li>
+                            Without a nonlinear <M>{"f"}</M>, the whole stack collapses into one linear map. The nonlinearity is what makes depth useful.
+                        </li>
+                        <li>
+                            Geometrically, hidden layers rotate, stretch and squash the plane until the final layer, which is just logistic regression, can
+                            separate the classes with a straight line.
+                        </li>
+                    </ul>
+                </>
+            }
+        />
     );
 }
