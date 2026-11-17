@@ -36,7 +36,7 @@ export const PLAYGROUNDS: PlaygroundMeta[] = [
     {slug: "pca", title: "PCA", tagline: "Find the directions where the data actually varies.", category: "dimensionality", status: "live"},
 
     {slug: "svm", title: "Support Vector Machines", tagline: "The widest street between two classes, and kernels that bend it.", category: "classification", status: "live"},
-    {slug: "decision-trees", title: "Decision Trees & Forests", tagline: "Carve the plane into boxes, one question at a time.", category: "classification", status: "soon"},
+    {slug: "decision-trees", title: "Decision Trees & Forests", tagline: "Carve the plane into boxes, one question at a time.", category: "classification", status: "live"},
     {slug: "naive-bayes", title: "Naive Bayes", tagline: "Classify with one Gaussian per class and Bayes' rule.", category: "classification", status: "soon"},
     {slug: "overfitting", title: "Overfitting & Regularization", tagline: "Crank up the polynomial degree, then rein it in.", category: "regression", status: "soon"},
     {slug: "gaussian-processes", title: "Gaussian Processes", tagline: "Regression that knows where it is unsure.", category: "regression", status: "soon"},
@@ -60,6 +60,7 @@ export const PLAYGROUND_COMPONENTS: Record<string, LazyExoticComponent<Component
     "k-means": lazy(() => import("./kmeans/KMeans")),
     pca: lazy(() => import("./pca/Pca")),
     svm: lazy(() => import("./svm/Svm")),
+    "decision-trees": lazy(() => import("./trees/Trees")),
 };
 
 export function categoryOf(slug: string): Category | undefined {
