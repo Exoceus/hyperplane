@@ -251,6 +251,54 @@ pub fn constrained_quadratic(a11: f64, a12: f64, a22: f64, cx: f64, cy: f64, t: 
     }
 }
 
+/// Train a degree-`degree` polynomial by gradient descent with momentum and
+/// record `frames` snapshots on a geometric schedule of steps (1 … max_steps,
+/// plus step 0). Stride `degree + 4`: `[step, train_mse, test_mse, c₀ … c_d]`.
+/// Early on only the smooth, high-variance directions are learned; the
+/// wiggly ones come much later, which is why stopping early regularizes.
+#[wasm_bindgen]
+pub fn poly_gd_trace(train: &[f64], test: &[f64], degree: usize, lr: f64, max_steps: usize, frames: usize) -> Vec<f64> {
+    let (rows, ys) = design(train, degree);
+    let p = degree + 1;
+    let n = rows.len().max(1) as f64;
+    let mut c = vec![0.0; p];
+    let mut v = vec![0.0; p];
+    let mut out = Vec::new();
+    let frames = frames.max(2);
+    let schedule: Vec<usize> = (0..frames)
+        .map(|f| if f == 0 { 0 } else { ((max_steps as f64).powf(f as f64 / (frames - 1) as f64)).round() as usize })
+        .collect();
+    let mut next = 0;
+    let mut record = |step: usize, c: &[f64], out: &mut Vec<f64>| {
+        out.push(step as f64);
+        out.push(mse(c, train));
+        out.push(mse(c, test));
+        out.extend_from_slice(c);
+    };
+    let mut grad = vec![0.0; p];
+    for step in 0..=max_steps {
+        while next < schedule.len() && schedule[next] == step {
+            record(step, &c, &mut out);
+            next += 1;
+        }
+        if next >= schedule.len() {
+            break;
+        }
+        grad.iter_mut().for_each(|g| *g = 0.0);
+        for (r, &y) in rows.iter().zip(&ys) {
+            let err: f64 = r.iter().zip(&c).map(|(a, b)| a * b).sum::<f64>() - y;
+            for k in 0..p {
+                grad[k] += 2.0 * err * r[k] / n;
+            }
+        }
+        for k in 0..p {
+            v[k] = 0.9 * v[k] - lr * grad[k];
+            c[k] += v[k];
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,6 +314,20 @@ mod tests {
         assert!(test_hi > 5.0 * best_test, "high degree should generalize badly");
         let reg = poly_fit(&train, 13, 1e-3, 0);
         assert!(mse(&reg, &test) < test_hi);
+    }
+
+    #[test]
+    fn gradient_descent_overfits_late_so_early_stopping_helps() {
+        let train = make_curve(14, 0.18, 7);
+        let test = make_curve(300, 0.18, 108);
+        let t = poly_gd_trace(&train, &test, 12, 0.05, 200_000, 60);
+        let stride = 12 + 4;
+        let frames: Vec<&[f64]> = t.chunks(stride).collect();
+        let best = frames.iter().map(|f| f[2]).fold(f64::INFINITY, f64::min);
+        let last = frames.last().unwrap();
+        println!("best test {best}, final test {}, final train {}", last[2], last[1]);
+        assert!(last[1] < frames[5][1], "training error keeps falling");
+        assert!(last[2] > 1.3 * best, "test error should rise after its minimum");
     }
 
     #[test]
