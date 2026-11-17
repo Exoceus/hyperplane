@@ -16,6 +16,7 @@
 
 pub mod contour;
 pub mod datasets;
+pub mod dbscan;
 pub mod gmm;
 pub mod gp;
 pub mod grid;
