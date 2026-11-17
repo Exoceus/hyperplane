@@ -86,7 +86,7 @@ export const LESSONS: LessonMeta[] = [
         tagline: "Find the directions in which your data actually varies.",
         track: "unsupervised",
         minutes: 10,
-        status: "soon",
+        status: "live",
     },
     {slug: "svm", title: "Support Vector Machines", tagline: "Out of all separating lines, pick the one with the widest street.", track: "classification", status: "soon"},
     {slug: "kernel-trick", title: "The Kernel Trick", tagline: "Lift data into higher dimensions where a plane can split it.", track: "classification", status: "soon"},
@@ -106,6 +106,7 @@ export const LESSON_COMPONENTS: Record<string, LazyExoticComponent<ComponentType
     "k-nearest-neighbors": lazy(() => import("./knn/Knn")),
     "neural-networks": lazy(() => import("./neural-networks/NeuralNetworks")),
     "k-means": lazy(() => import("./kmeans/KMeans")),
+    pca: lazy(() => import("./pca/Pca")),
 };
 
 export function lessonNumber(slug: string): number {
