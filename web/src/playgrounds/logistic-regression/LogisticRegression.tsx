@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react";
-import {Link} from "react-router";
 import {Button, Legend, Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
-import {Callout, Figure, FigureLayout} from "../../components/Figure";
+import {FigureLayout} from "../../components/Figure";
+import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
@@ -67,7 +67,7 @@ function SigmoidFigure() {
     const threshold = Math.abs(w) > 1e-6 ? -b / w : NaN;
 
     return (
-        <Figure n={1} title="Squashing a score into a probability" hint="Move the sliders, then let gradient descent fit them">
+        <Instrument hint="Move the sliders, then let gradient descent fit them">
             <FigureLayout
                 main={
                     <>
@@ -142,7 +142,7 @@ function SigmoidFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -155,10 +155,10 @@ const G = 120;
 const RECORD = 2;
 const STEPS = 1600;
 
-function PlaneFigure() {
+function PlaneFigure(props: {sep?: number; l2?: number}) {
     const [seed, setSeed] = useState(2);
-    const [sep, setSep] = useState(1.1);
-    const [l2, setL2] = useState(0);
+    const [sep, setSep] = useState(props.sep ?? 1.1);
+    const [l2, setL2] = useState(props.l2 ?? 0);
     const [extra, setExtra] = useState<Float64Array>(new Float64Array());
     const [brush, setBrush] = useState<0 | 1>(0);
     const base = useMemo(() => make_two_blobs(120, sep, 0.24, seed), [sep, seed]);
@@ -205,7 +205,7 @@ function PlaneFigure() {
     const levels = [0.1, 0.25, 0.5, 0.75, 0.9];
 
     return (
-        <Figure n={2} title="Probabilities over the plane" hint="Click to add points · click an added point to remove it">
+        <Instrument hint="Click to add points · click an added point to remove it">
             <FigureLayout
                 main={
                     <>
@@ -277,7 +277,7 @@ function PlaneFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -285,96 +285,59 @@ function PlaneFigure() {
 // Lesson
 // ===========================================================================
 
+const SCENARIOS: Scenario[] = [
+    {
+        id: "overlap",
+        title: "Overlapping classes",
+        prompt: <>Press play. The boundary settles where the classes meet, and the dashed probability bands show how confident the model is on either side.</>,
+        render: () => <PlaneFigure />,
+    },
+    {
+        id: "separable",
+        title: "Perfectly separable",
+        prompt: <>Nothing overlaps. Play it and watch ‖w‖: it never stops growing, because more confidence always lowers the loss. The bands squeeze into a hard step.</>,
+        render: () => <PlaneFigure sep={2.4} />,
+    },
+    {
+        id: "l2",
+        title: "Rein it in with L2",
+        prompt: <>Same separable data with an L2 penalty on the weights. Now ‖w‖ levels off and the probabilities stay soft. Slide λ to trade confidence for caution.</>,
+        render: () => <PlaneFigure sep={2.4} l2={0.01} />,
+    },
+    {
+        id: "sigmoid",
+        title: "One dimension",
+        prompt: <>Shape the sigmoid with w (steepness) and b (shift). The bars below are each point's penalty. Make the curve steep and slightly misplaced to see the confident mistakes explode.</>,
+        render: () => <SigmoidFigure />,
+    },
+];
+
 export default function LogisticRegression() {
     return (
-        <>
-            <p>
-                The <Link to="/learn/perceptron">perceptron</Link> answers every question with a flat "yes" or "no". A point a hair's breadth from the boundary
-                gets the same verdict as one far away, and when no perfect line exists, the algorithm never settles. <strong>Logistic regression</strong>{" "}
-                keeps the same linear score but turns it into a <em>probability</em>, and that one change fixes both problems.
-            </p>
-
-            <h2 id="sigmoid">From scores to probabilities</h2>
-            <p>
-                Start with the same score as before, <M>{"z = \\vw\\cdot\\vx + b"}</M>. It can be any real number, and a probability has to live in{" "}
-                <M>{"[0, 1]"}</M>. The <strong>sigmoid</strong> (or logistic) function squashes one into the other:
-            </p>
-            <MathBlock>{"\\sigma(z) = \\frac{1}{1 + e^{-z}}, \\qquad P(y = 1 \\mid \\vx) = \\sigma(\\vw\\cdot\\vx + b)"}</MathBlock>
-            <p>
-                Large positive scores map to probabilities near 1, large negative scores to near 0, and a score of exactly 0 to ½. The boundary{" "}
-                <M>{"z = 0"}</M> is the same line as the perceptron's. What's new is the gentle ramp around it. In 1D the weight{" "}
-                <M>{"\\yel{w}"}</M> controls how steep the ramp is, which is to say how <em>confident</em> the model is.
-            </p>
-            <p>
-                Reading the formula backwards gives a useful interpretation. The score is the <strong>log-odds</strong>,{" "}
-                <M>{"z = \\log\\frac{p}{1-p}"}</M>, so each unit of <M>{"z"}</M> multiplies the odds of class 1 by <M>{"e \\approx 2.72"}</M>.
-            </p>
-
-            <h2 id="loss">Scoring a probability: cross-entropy</h2>
-            <p>
-                How should a probabilistic prediction be graded? We look at the probability the model gave to the label that actually happened, and charge
-                its negative logarithm:
-            </p>
-            <MathBlock label="binary cross-entropy">{"\\mathcal{L} = -\\frac{1}{n}\\sum_{i=1}^n \\Big[ y_i \\log p_i + (1 - y_i) \\log (1 - p_i) \\Big]"}</MathBlock>
-            <p>
-                A point predicted correctly with confidence costs almost nothing. A point predicted at 50/50 costs <M>{"\\log 2 \\approx 0.69"}</M>. A point
-                predicted <em>confidently wrong</em> costs a lot, and the cost grows without bound as the model's confidence in the wrong answer approaches
-                certainty. Watch the bars under the curve as you drag the sliders.
-            </p>
-
-            <SigmoidFigure />
-
-            <Callout kind="try">
-                Make the curve very steep (large <M>{"w"}</M>) with the threshold in a slightly wrong place. The few points on the wrong side light up
-                with huge penalties. Cross-entropy is unforgiving of overconfidence, which is exactly what makes the fitted probabilities honest.
-            </Callout>
-
-            <h2 id="gradient">The gradient is beautifully simple</h2>
-            <p>
-                Cross-entropy and the sigmoid fit together neatly. Because <M>{"\\sigma'(z) = \\sigma(z)(1 - \\sigma(z))"}</M>, almost everything cancels
-                when you differentiate, and the gradient is
-            </p>
-            <MathBlock>{"\\nabla_{\\vw} \\mathcal{L} = \\frac{1}{n}\\sum_{i=1}^n \\big(\\,p_i - y_i\\,\\big)\\,\\vx_i, \\qquad \\frac{\\partial \\mathcal{L}}{\\partial b} = \\frac{1}{n}\\sum_{i=1}^n \\big(p_i - y_i\\big)"}</MathBlock>
-            <p>
-                Compare it to the perceptron. Each point pushes the weights along <M>{"\\vx_i"}</M>, weighted by its error <M>{"p_i - y_i"}</M>. The
-                perceptron pushed only for mistakes and always pushed by a full unit. Logistic regression pushes for every point, softly, in proportion to
-                how wrong it was. Points that are confidently right contribute almost nothing. The loss is also <em>convex</em>: a single bowl with no
-                local minima, so gradient descent will find the best answer.
-            </p>
-
-            <h2 id="plane">In two dimensions</h2>
-            <p>
-                In 2D, the probability is a smooth ramp across the plane. Its level sets <M>{"P = 0.1, 0.25, 0.5, \\ldots"}</M> are parallel lines, all
-                perpendicular to <M>{"\\vw"}</M>. The spacing between them is inversely proportional to <M>{"\\lVert\\vw\\rVert"}</M>: a longer weight
-                vector means a sharper, more confident transition.
-            </p>
-
-            <PlaneFigure />
-
-            <Callout>
-                Push the classes apart until they are perfectly separable, and watch <M>{"\\lVert\\vw\\rVert"}</M>. It never stops growing. On separable
-                data the loss can always be lowered a little further by becoming more confident, so the probability lines squeeze together forever,
-                toward a hard perceptron-style step. The fix is <strong>regularization</strong>: adding <M>{"\\tfrac{\\lambda}{2}\\lVert\\vw\\rVert^2"}</M>{" "}
-                to the loss charges for confidence, and the weights settle at a finite size.
-            </Callout>
-
-            <section className="takeaways">
-                <h2>Takeaways</h2>
-                <ul>
-                    <li>
-                        Logistic regression keeps the linear score <M>{"\\vw\\cdot\\vx + b"}</M> and maps it through a sigmoid to get a probability. The
-                        score is the log-odds.
-                    </li>
-                    <li>Cross-entropy charges <M>{"-\\log"}</M> of the probability given to the true label. Confident mistakes are very expensive.</li>
-                    <li>
-                        The gradient is <M>{"(p - y)\\,\\vx"}</M>, a soft, always-on version of the perceptron update, on a convex loss with a single
-                        minimum.
-                    </li>
-                    <li>
-                        <M>{"\\lVert\\vw\\rVert"}</M> sets the confidence. On separable data it grows without bound unless you regularize.
-                    </li>
-                </ul>
-            </section>
-        </>
+        <Playground
+            scenarios={SCENARIOS}
+            explainer={
+                <>
+                    <ul>
+                        <li>Keep the perceptron's linear score, but squash it into a probability:</li>
+                    </ul>
+                    <MathBlock>{"P(y = 1 \\mid \\vx) = \\sigma(\\vw\\cdot\\vx + b), \\qquad \\sigma(z) = \\frac{1}{1 + e^{-z}}"}</MathBlock>
+                    <ul>
+                        <li>
+                            Train by minimizing cross-entropy, <M>{"-\\frac1n\\sum_i \\big[y_i \\log p_i + (1-y_i)\\log(1-p_i)\\big]"}</M>, which charges{" "}
+                            <M>{"-\\log"}</M> of the probability given to the true label.
+                        </li>
+                        <li>
+                            The gradient is just <M>{"\\frac1n\\sum_i (p_i - y_i)\\,\\vx_i"}</M>, a soft, always-on version of the perceptron update. The
+                            loss is convex, so there are no local minima.
+                        </li>
+                        <li>
+                            The score is the log-odds. <M>{"\\lVert\\vw\\rVert"}</M> sets how sharp the transition is. On separable data it grows without
+                            bound unless you add <M>{"\\tfrac\\lambda2\\lVert\\vw\\rVert^2"}</M>.
+                        </li>
+                    </ul>
+                </>
+            }
+        />
     );
 }

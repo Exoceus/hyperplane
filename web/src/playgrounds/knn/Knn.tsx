@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react";
 import {Button, Segmented, Slider} from "../../components/Controls";
-import {Callout, Figure, FigureLayout} from "../../components/Figure";
+import {FigureLayout} from "../../components/Figure";
+import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
@@ -38,12 +39,12 @@ function drawBall(p: Painter, cx: number, cy: number, r: number, metric: number,
     p.polyline(pts, {close: true, color, width: 1.5, dash: [5, 4]});
 }
 
-function KnnFigure() {
-    const [kind, setKind] = useState<Kind>("moons");
+function KnnFigure(props: {kind?: Kind; noise?: number; k?: number; metric?: number}) {
+    const [kind, setKind] = useState<Kind>(props.kind ?? "moons");
     const [seed, setSeed] = useState(4);
-    const [noise, setNoise] = useState(0.45);
-    const [k, setK] = useState(5);
-    const [metric, setMetric] = useState(0);
+    const [noise, setNoise] = useState(props.noise ?? 0.45);
+    const [k, setK] = useState(props.k ?? 5);
+    const [metric, setMetric] = useState(props.metric ?? 0);
     const [extra, setExtra] = useState<Float64Array>(new Float64Array());
     const [brush, setBrush] = useState(0);
     const [query, setQuery] = useState<{x: number; y: number} | null>({x: 0.1, y: 0.15});
@@ -97,7 +98,7 @@ function KnnFigure() {
     const reset = () => setExtra(new Float64Array());
 
     return (
-        <Figure n={1} title="Ask the neighbors" hint="Hover to probe · click to add a point of the chosen class">
+        <Instrument hint="Hover to probe · click to add a point of the chosen class">
             <FigureLayout
                 sideWidth={300}
                 main={
@@ -185,91 +186,68 @@ function KnnFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
+const SCENARIOS: Scenario[] = [
+    {
+        id: "k1",
+        title: "k = 1 memorizes",
+        prompt: <>Every point owns its own little territory, including the noisy ones, so you get islands. Training accuracy is a perfect 100%. Check the green test curve to see the real story.</>,
+        render: () => <KnnFigure k={1} />,
+    },
+    {
+        id: "smooth",
+        title: "Smooth it out",
+        prompt: <>With k = 15 the noise gets outvoted and the boundary follows the real shape. Hover anywhere to see who votes.</>,
+        render: () => <KnnFigure k={15} />,
+    },
+    {
+        id: "too-smooth",
+        title: "Too smooth",
+        prompt: <>On a spiral, a big k reaches across the arms and blurs the structure away. Slide k down until the spiral reappears, and watch the test accuracy peak.</>,
+        render: () => <KnnFigure kind="spiral" noise={0.15} k={35} />,
+    },
+    {
+        id: "metric",
+        title: "Shape of “near”",
+        prompt: <>Switch between Euclidean, Manhattan and Chebyshev. The dashed neighborhood becomes a circle, a diamond or a square, and the region edges follow.</>,
+        render: () => <KnnFigure kind="blobs" noise={0.3} k={7} metric={1} />,
+    },
+    {
+        id: "draw",
+        title: "Draw your own",
+        prompt: <>Pick a class under “Clicking adds” and click to plant points. Try sneaking an orange island into the blue region and find the k that ignores it.</>,
+        render: () => <KnnFigure kind="xor" noise={0.1} k={3} />,
+    },
+];
+
 export default function Knn() {
     return (
-        <>
-            <p>
-                Here is a classifier with no training step at all. To label a new point, find the <M>{"k"}</M> training points closest to it and let
-                them vote. That is <strong>k-nearest neighbors</strong>. It makes no assumption that boundaries are lines, and with enough data it can
-                learn almost any shape. In exchange you have to answer two questions it can't answer for you: how many neighbors, and what does "near"
-                mean?
-            </p>
-
-            <h2 id="algorithm">The algorithm</h2>
-            <p>Given a query point <M>{"\\vx"}</M>:</p>
-            <ol>
-                <li>
-                    Compute the distance from <M>{"\\vx"}</M> to every training point.
-                </li>
-                <li>
-                    Keep the <M>{"k"}</M> closest, <M>{"N_k(\\vx)"}</M>.
-                </li>
-                <li>Predict the most common label among them.</li>
-            </ol>
-            <MathBlock>{"\\hat y(\\vx) = \\arg\\max_{c} \\; \\big|\\{\\, i \\in N_k(\\vx) : y_i = c \\,\\}\\big|"}</MathBlock>
-            <p>
-                Doing this for every pixel of the plane paints the <strong>decision regions</strong> below. Each pixel is its own query against every
-                training point. That is over five million distance computations for the full picture, recomputed in WebAssembly every time you change
-                something.
-            </p>
-
-            <KnnFigure />
-
-            <h2 id="k">Choosing k: noise versus blur</h2>
-            <p>
-                With <M>{"k = 1"}</M>, every training point owns a small territory: the region of space closer to it than to any other point, a{" "}
-                <em>Voronoi cell</em>. The boundary follows every quirk of the data, including the noise. Islands appear around mislabeled points, and
-                accuracy on the training data is a perfect 100%, since each point is its own nearest neighbor. That number is meaningless. The green
-                curve, measured on <em>fresh</em> points from the same distribution, tells the real story.
-            </p>
-            <p>
-                As <M>{"k"}</M> grows, each vote averages over a wider neighborhood. Noise gets outvoted and the boundary smooths out. Push{" "}
-                <M>{"k"}</M> too far and the vote starts reaching across into the other class's territory, blurring real structure away. At the extreme,{" "}
-                <M>{"k = n"}</M> predicts the majority class everywhere.
-            </p>
-            <Callout>
-                This is the <strong>bias–variance trade-off</strong> in its clearest form. Small <M>{"k"}</M> gives low bias and high variance: the
-                model is flexible enough to fit anything, including noise. Large <M>{"k"}</M> gives high bias and low variance: the model is stable but
-                too rigid. The best <M>{"k"}</M> is where held-out accuracy peaks, and you can only find it with data the model hasn't seen.
-            </Callout>
-
-            <h2 id="distance">What does "near" mean?</h2>
-            <p>
-                The algorithm is only as good as its distance function. The usual choices are members of one family, the <M>{"L_p"}</M> norms:
-            </p>
-            <MathBlock>{"d_2 = \\sqrt{\\Delta x^2 + \\Delta y^2}, \\qquad d_1 = |\\Delta x| + |\\Delta y|, \\qquad d_\\infty = \\max\\big(|\\Delta x|, |\\Delta y|\\big)"}</MathBlock>
-            <p>
-                Each one has a different "ball", the set of points within distance <M>{"r"}</M>. For Euclidean distance it is a circle. For Manhattan it
-                is a diamond, and for Chebyshev a square. Switch metrics and watch the dashed neighborhood change shape, and the region boundaries pick up
-                45° or axis-aligned edges.
-            </p>
-            <Callout kind="note" title="Two practical warnings">
-                <ul>
-                    <li>
-                        <strong>Scale matters.</strong> If one feature is measured in meters and another in millimeters, the second will dominate every
-                        distance. Standardize features before using k-NN.
-                    </li>
-                    <li>
-                        <strong>High dimensions are strange.</strong> In hundreds of dimensions, nearly all points are roughly the same distance from
-                        each other, so "nearest" carries little information. This is the <em>curse of dimensionality</em>, and it is why k-NN works best
-                        on low-dimensional or carefully embedded data.
-                    </li>
-                </ul>
-            </Callout>
-
-            <section className="takeaways">
-                <h2>Takeaways</h2>
-                <ul>
-                    <li>k-NN memorizes the training set and classifies by a majority vote of the k closest points. It has no training step and no model.</li>
-                    <li>Small k overfits (jagged, noisy regions). Large k underfits (blurred regions). Choose k on held-out data.</li>
-                    <li>The distance metric defines the neighborhood's shape and the geometry of the boundaries.</li>
-                    <li>All the cost moves to prediction time: every query compares against every stored point.</li>
-                </ul>
-            </section>
-        </>
+        <Playground
+            scenarios={SCENARIOS}
+            explainer={
+                <>
+                    <ul>
+                        <li>
+                            No training step: to classify <M>{"\\vx"}</M>, find the <M>{"k"}</M> closest stored points and take a majority vote.
+                        </li>
+                    </ul>
+                    <MathBlock>{"\\hat y(\\vx) = \\arg\\max_c \\; \\big|\\{ i \\in N_k(\\vx) : y_i = c \\}\\big|"}</MathBlock>
+                    <ul>
+                        <li>
+                            Small <M>{"k"}</M> gives low bias and high variance (it overfits the noise). Large <M>{"k"}</M> gives high bias and low variance (it
+                            blurs the boundary). Pick <M>{"k"}</M> on held-out data.
+                        </li>
+                        <li>
+                            The metric defines the shape of a neighborhood: <M>{"L_2"}</M> is a circle, <M>{"L_1"}</M> a diamond, <M>{"L_\\infty"}</M> a
+                            square. Standardize features first, or the largest-scale feature dominates.
+                        </li>
+                        <li>The decision regions here are recomputed in WebAssembly for every pixel: about five million distance computations per redraw.</li>
+                    </ul>
+                </>
+            }
+        />
     );
 }

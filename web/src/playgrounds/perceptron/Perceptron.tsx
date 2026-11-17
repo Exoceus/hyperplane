@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react";
-import {Link} from "react-router";
 import {Button, Legend, Meter, Player, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
-import {Callout, Figure, FigureLayout, Panel} from "../../components/Figure";
+import {FigureLayout, Panel} from "../../components/Figure";
+import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
 import {appendRow, drawLabelled, hitPoint, removeRow} from "../../lib/data";
@@ -77,7 +77,7 @@ function AnatomyFigure() {
     const hoverTip = hover && Math.hypot((hover.x - w.w1) * 100, (hover.y - w.w2) * 100) < 16;
 
     return (
-        <Figure n={1} title="Anatomy of a linear classifier" hint="Drag the yellow arrow or the white line">
+        <Instrument hint="Drag the yellow arrow or the white line">
             <FigureLayout
                 main={
                     <Plot
@@ -141,7 +141,7 @@ function AnatomyFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -153,8 +153,8 @@ function wrapAngle(a: number) {
     return Math.atan2(Math.sin(a), Math.cos(a));
 }
 
-function UpdatesFigure() {
-    const [seed, setSeed] = useState(3);
+function UpdatesFigure({seed: seed0 = 3}: {seed?: number}) {
+    const [seed, setSeed] = useState(seed0);
     const {data, truth} = useMemo(() => makeData(seed, 16, 0.12, 0, true), [seed]);
     const [w0Override, setW0] = useState<{w1: number; w2: number} | null>(null);
     const [draggingW0, setDraggingW0] = useState(false);
@@ -245,7 +245,7 @@ function UpdatesFigure() {
     const pointRing = (k: number) => (k === active && f > 0 ? C.white : isMistake(cur.w1, cur.w2, 0, data[3 * k], data[3 * k + 1], data[3 * k + 2]) ? C.red : undefined);
 
     return (
-        <Figure n={2} title="Learning from mistakes: two views of the same update" hint="Drag the starting 𝐰₀ (at step 0) in weight space">
+        <Instrument hint="Drag the starting 𝐰₀ (at step 0) in weight space">
             <div className="duo">
                 <Panel label="Data space" right={`${mistakesNow} mistakes`}>
                     <Plot
@@ -332,7 +332,7 @@ function UpdatesFigure() {
                     />
                 </div>
             </div>
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -340,11 +340,11 @@ function UpdatesFigure() {
 // Figure 3 — with a bias, and the convergence guarantee
 // ===========================================================================
 
-function ConvergenceFigure() {
-    const [seed, setSeed] = useState(11);
-    const [n, setN] = useState(100);
-    const [margin, setMargin] = useState(0.03);
-    const [noise, setNoise] = useState(0);
+function ConvergenceFigure(props: {n?: number; margin?: number; noise?: number; seed?: number}) {
+    const [seed, setSeed] = useState(props.seed ?? 11);
+    const [n, setN] = useState(props.n ?? 100);
+    const [margin, setMargin] = useState(props.margin ?? 0.03);
+    const [noise, setNoise] = useState(props.noise ?? 0);
     const [extra, setExtra] = useState<Float64Array>(new Float64Array());
     const [brush, setBrush] = useState<0 | 1>(1);
     const [showTruth, setShowTruth] = useState(true);
@@ -408,7 +408,7 @@ function ConvergenceFigure() {
     const done = tl.atEnd && K > 0;
 
     return (
-        <Figure n={3} title="With a bias: does it always stop?" hint="Click to add points · click an added point to remove it">
+        <Instrument hint="Click to add points · click an added point to remove it">
             <FigureLayout
                 main={
                     <>
@@ -511,7 +511,7 @@ function ConvergenceFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -519,154 +519,70 @@ function ConvergenceFigure() {
 // Lesson
 // ===========================================================================
 
+const SCENARIOS: Scenario[] = [
+    {
+        id: "separable",
+        title: "Separable data",
+        prompt: <>Press play. The boundary jumps after every mistake, then locks in once every point is on the right side.</>,
+        render: () => <ConvergenceFigure />,
+    },
+    {
+        id: "thin-margin",
+        title: "Razor-thin gap",
+        prompt: <>Same algorithm, but the classes nearly touch. Count the updates against the guarantee meter: a smaller gap means many more mistakes.</>,
+        render: () => <ConvergenceFigure margin={0.006} n={160} seed={4} />,
+    },
+    {
+        id: "noisy",
+        title: "Noisy labels",
+        prompt: <>A few labels are flipped, so no line can separate the data. Play it and watch the perceptron thrash forever.</>,
+        render: () => <ConvergenceFigure noise={0.06} />,
+    },
+    {
+        id: "weight-space",
+        title: "Weight space",
+        prompt: (
+            <>
+                Step through one update at a time. On the left a mistake tilts the boundary. On the right the same update is a vector addition that
+                walks <M>{"\\vw"}</M> into the green wedge of perfect classifiers.
+            </>
+        ),
+        render: () => <UpdatesFigure />,
+    },
+    {
+        id: "by-hand",
+        title: "Classify by hand",
+        prompt: <>Drag the yellow arrow and the white line until the mistake count hits zero. You are doing the perceptron's job.</>,
+        render: () => <AnatomyFigure />,
+    },
+];
+
 export default function Perceptron() {
     return (
-        <>
-            <p>
-                In 1958 Frank Rosenblatt unveiled a machine that taught itself to tell shapes apart. The algorithm behind it, the <strong>perceptron</strong>,
-                fits in three lines of code. It still contains every ingredient of modern machine learning: a model with adjustable parameters, a way to
-                notice mistakes, and a rule for improving after each one.
-            </p>
-            <p>
-                It also explains this site's name. The perceptron's decision boundary is a <em>hyperplane</em>: a line in 2D, a plane in 3D, and a
-                flat <M>{"(d-1)"}</M>-dimensional sheet in <M>{"d"}</M> dimensions.
-            </p>
-
-            <h2 id="linear-classifier">A line that makes decisions</h2>
-            <p>
-                Each data point is a vector <M>{"\\vx = (x_1, x_2)"}</M> with a label <M>{"y"}</M> that is either <span className="c-blue">+1</span> or{" "}
-                <span className="c-orange">−1</span>. A linear classifier gives every point a <strong>score</strong>, then predicts using only its sign:
-            </p>
-            <MathBlock>{"s(\\vx) = \\vw \\cdot \\vx + b = \\yel{w_1} x_1 + \\yel{w_2} x_2 + b, \\qquad \\hat y = \\operatorname{sign}\\big(s(\\vx)\\big)"}</MathBlock>
-            <p>
-                The boundary is the set of points that score exactly zero, <M>{"\\vw\\cdot\\vx + b = 0"}</M>. Two facts about it are worth seeing for yourself
-                before reading the algebra:
-            </p>
-            <ul>
-                <li>
-                    The weight vector <M>{"\\vw"}</M> is <strong>perpendicular</strong> to the boundary, and it points toward the{" "}
-                    <span className="c-blue">positive</span> side.
-                </li>
-                <li>
-                    The bias <M>{"b"}</M> <strong>slides</strong> the boundary without turning it. The line sits a signed distance{" "}
-                    <M>{"-b/\\lVert\\vw\\rVert"}</M> from the origin.
-                </li>
-            </ul>
-
-            <AnatomyFigure />
-
-            <p>
-                Why perpendicular? If two points <M>{"\\vx"}</M> and <M>{"\\vx'"}</M> both lie on the boundary, subtracting their equations gives{" "}
-                <M>{"\\vw\\cdot(\\vx - \\vx') = 0"}</M>. Every direction <em>along</em> the line is orthogonal to <M>{"\\vw"}</M>. The score also has a
-                geometric meaning: <M>{"s(\\vx)/\\lVert\\vw\\rVert"}</M> is the signed distance from <M>{"\\vx"}</M> to the line. Points far from the
-                boundary get confident scores and points near it get scores close to zero.
-            </p>
-
-            <Callout kind="try">
-                Try to drive the mistake count to zero by hand. You will find yourself rotating the arrow toward the blue points and sliding the line into
-                the gap. Next, we will make that process automatic.
-            </Callout>
-
-            <h2 id="mistakes">Learning from mistakes</h2>
-            <p>
-                The perceptron starts from any weights and visits the points one at a time. When a point is classified correctly, nothing happens. When a
-                point is misclassified, which means <M>{"y\\,(\\vw\\cdot\\vx + b) \\le 0"}</M>, the weights are nudged toward that point's label:
-            </p>
-            <MathBlock label="the perceptron update">{"\\vw \\leftarrow \\vw + y\\,\\vx, \\qquad b \\leftarrow b + y"}</MathBlock>
-            <p>
-                Why should this help? Look at what the update does to the score of the point that triggered it. Ignoring the bias for a moment:
-            </p>
-            <MathBlock>{"y\\,(\\vw + y\\vx)\\cdot\\vx \\;=\\; y\\,\\vw\\cdot\\vx \\;+\\; \\underbrace{y^2}_{=1}\\lVert\\vx\\rVert^2 \\;=\\; y\\,\\vw\\cdot\\vx + \\lVert\\vx\\rVert^2"}</MathBlock>
-            <p>
-                The quantity <M>{"y\\,\\vw\\cdot\\vx"}</M> is positive exactly when the point is classified correctly, and each update raises it by{" "}
-                <M>{"\\lVert\\vx\\rVert^2 > 0"}</M>. The fix may not be complete in one step, and it can disturb other points. But it always pushes in the
-                right direction for the point that complained.
-            </p>
-            <p>
-                Geometry makes this vivid. If we temporarily drop the bias so the boundary passes through the origin, then weights and data live in the same
-                plane. Adding <M>{"\\vx"}</M> to <M>{"\\vw"}</M> tilts <M>{"\\vw"}</M> <em>toward</em> a misclassified positive point, and subtracting it
-                tilts <M>{"\\vw"}</M> <em>away</em> from a misclassified negative one.
-            </p>
-            <p>
-                The right panel below is <strong>weight space</strong>. Every possible classifier is a single point there. Each data point{" "}
-                <M>{"\\vx_i"}</M> draws a line <M>{"\\vw\\cdot\\vx_i = 0"}</M> through weight space, and only weights on the correct side of that line
-                classify the point correctly. Intersect all of those half-planes and you get the <span className="c-green">green wedge</span> of perfect
-                classifiers. Training is a walk in weight space, one tip-to-tail vector addition at a time, until the walk ends inside the wedge.
-            </p>
-
-            <UpdatesFigure />
-
-            <Callout>
-                In data space, a mistake is a point on the wrong side of a line. In weight space, the same mistake is a weight vector on the wrong side of a
-                line. The update <M>{"\\vw \\leftarrow \\vw + y\\vx"}</M> is a step perpendicular to that line, toward the side where the point is
-                classified correctly. Seeing one picture through the other, called <em>duality</em>, comes up all over machine learning.
-            </Callout>
-
-            <h2 id="convergence">Adding the bias back, and a guarantee</h2>
-            <p>
-                The bias is handled with a classic trick. Append a constant <M>{"1"}</M> to every input and fold <M>{"b"}</M> into the weights:
-            </p>
-            <MathBlock>{"\\tilde{\\vx} = (x_1, x_2, 1), \\qquad \\tilde{\\vw} = (\\yel{w_1}, \\yel{w_2}, b) \\quad\\Longrightarrow\\quad \\tilde\\vw \\cdot \\tilde\\vx = \\vw\\cdot\\vx + b"}</MathBlock>
-            <p>
-                Now <M>{"\\tilde\\vw \\leftarrow \\tilde\\vw + y\\tilde\\vx"}</M> is exactly the update above, bias included. Geometrically, we lifted the
-                2D data onto the plane <M>{"z = 1"}</M> in 3D and are searching for a plane through the origin. Where that plane slices <M>{"z=1"}</M>, it
-                draws our line.
-            </p>
-            <p>
-                Does the walk always end? In 1962 Albert Novikoff proved that it does whenever a perfect line exists. Suppose some unit vector{" "}
-                <M>{"\\vw^\\ast"}</M> separates the data with a <span className="c-green">margin</span> <M>{"\\gamma"}</M>, meaning{" "}
-                <M>{"y_i\\,\\vw^\\ast\\!\\cdot\\tilde\\vx_i \\ge \\gamma"}</M> for every point, and every point satisfies{" "}
-                <M>{"\\lVert\\tilde\\vx_i\\rVert \\le R"}</M>. Then, starting from <M>{"\\vw = 0"}</M>, the perceptron makes at most
-            </p>
-            <MathBlock label="Novikoff, 1962">{"k \\;\\le\\; \\left(\\frac{R}{\\gamma}\\right)^{2} \\quad\\text{mistakes.}"}</MathBlock>
-            <p>The proof squeezes the weight vector between two bounds after <M>{"k"}</M> mistakes:</p>
-            <ul>
-                <li>
-                    <strong>It aligns with the answer quickly.</strong> Each update adds <M>{"y\\,\\tilde\\vx\\cdot\\vw^\\ast \\ge \\gamma"}</M> to{" "}
-                    <M>{"\\vw\\cdot\\vw^\\ast"}</M>, so <M>{"\\vw\\cdot\\vw^\\ast \\ge k\\gamma"}</M>.
-                </li>
-                <li>
-                    <strong>It grows slowly.</strong> On a mistake <M>{"\\lVert\\vw + y\\tilde\\vx\\rVert^2 = \\lVert\\vw\\rVert^2 + 2y\\,\\vw\\cdot\\tilde\\vx + \\lVert\\tilde\\vx\\rVert^2"}</M>,
-                    and the middle term is <M>{"\\le 0"}</M> because the point was misclassified. So <M>{"\\lVert\\vw\\rVert^2 \\le kR^2"}</M>.
-                </li>
-            </ul>
-            <p>
-                Cauchy–Schwarz says <M>{"\\vw\\cdot\\vw^\\ast \\le \\lVert\\vw\\rVert"}</M>, so <M>{"k\\gamma \\le \\sqrt{k}\\,R"}</M>, which rearranges to{" "}
-                <M>{"k \\le (R/\\gamma)^2"}</M>. Notice what does <em>not</em> appear in the bound: the number of points and the dimension. Only the
-                geometry of the gap matters.
-            </p>
-
-            <ConvergenceFigure />
-
-            <Callout kind="try">
-                <ul>
-                    <li>Shrink the margin and watch the number of updates climb. A thin gap is hard to find.</li>
-                    <li>
-                        Add a little label noise, or click an orange point into the blue cloud. Once no line can separate the data, the perceptron thrashes
-                        forever. That flaw motivated <Link to="/learn/logistic-regression">logistic regression</Link> and, later, the max-margin idea behind
-                        support vector machines.
-                    </li>
-                </ul>
-            </Callout>
-
-            <section className="takeaways">
-                <h2>Takeaways</h2>
-                <ul>
-                    <li>
-                        A linear classifier is a score <M>{"\\vw\\cdot\\vx + b"}</M>. The weights set the boundary's orientation (perpendicular to{" "}
-                        <M>{"\\vw"}</M>), and the bias sets its offset.
-                    </li>
-                    <li>
-                        The perceptron only learns from mistakes: <M>{"\\vw \\leftarrow \\vw + y\\vx"}</M>. Each update tilts the boundary toward getting
-                        the offending point right.
-                    </li>
-                    <li>In weight space, training is a walk toward the region of perfect classifiers.</li>
-                    <li>
-                        If the data is separable with margin <M>{"\\gamma"}</M>, the walk ends after at most <M>{"(R/\\gamma)^2"}</M> mistakes. If it
-                        isn't separable, the walk never ends.
-                    </li>
-                </ul>
-            </section>
-        </>
+        <Playground
+            scenarios={SCENARIOS}
+            explainer={
+                <>
+                    <ul>
+                        <li>
+                            Score each point with <M>{"s(\\vx) = \\vw\\cdot\\vx + b"}</M> and predict its sign. The boundary <M>{"s = 0"}</M> is a line
+                            perpendicular to <M>{"\\vw"}</M>.
+                        </li>
+                        <li>Visit points one by one. Correct points change nothing. A misclassified point nudges the weights toward its label:</li>
+                    </ul>
+                    <MathBlock>{"\\text{if } y\\,(\\vw\\cdot\\vx + b) \\le 0: \\qquad \\vw \\leftarrow \\vw + y\\,\\vx, \\quad b \\leftarrow b + y"}</MathBlock>
+                    <ul>
+                        <li>
+                            Each update raises <M>{"y\\,\\vw\\cdot\\vx"}</M> for the offending point by <M>{"\\lVert\\vx\\rVert^2"}</M>, so it always pushes
+                            in the right direction.
+                        </li>
+                        <li>
+                            <strong>Novikoff (1962):</strong> if a line separates the data with margin <M>{"\\gamma"}</M> and every point lies within{" "}
+                            <M>{"R"}</M> of the origin, there are at most <M>{"(R/\\gamma)^2"}</M> mistakes. If the data isn't separable, it never stops.
+                        </li>
+                    </ul>
+                </>
+            }
+        />
     );
 }

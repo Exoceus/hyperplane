@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react";
-import {Link} from "react-router";
 import {Button, Legend, Player, Slider, Stat, Stats} from "../../components/Controls";
-import {Callout, Figure, FigureLayout, Panel} from "../../components/Figure";
+import {FigureLayout, Panel} from "../../components/Figure";
+import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
@@ -56,9 +56,9 @@ function drawEllipse(p: Painter, s: Pca2, k: number, color: string) {
 // Figure 1 — the direction of maximum variance
 // ===========================================================================
 
-function DirectionFigure() {
+function DirectionFigure(props: {stretch?: number}) {
     const [seed, setSeed] = useState(8);
-    const [stretch, setStretch] = useState(0.3);
+    const [stretch, setStretch] = useState(props.stretch ?? 0.3);
     const data = useMemo(() => make_gaussian(N, 0.05, -0.05, 0.5, 0.5 * stretch, 0.6, seed), [seed, stretch]);
     const stats = useMemo(() => pca2(data), [data]);
     const [angle, animateAngle, setAngle] = useTween([2.2], 0.8);
@@ -102,7 +102,7 @@ function DirectionFigure() {
     const [mx, my] = stats.mean;
 
     return (
-        <Figure n={1} title="Squash the cloud onto a line" hint="Drag anywhere to rotate the line">
+        <Instrument hint="Drag anywhere to rotate the line">
             <FigureLayout
                 main={
                     <Plot
@@ -177,7 +177,7 @@ function DirectionFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -227,7 +227,7 @@ function RotateFigure() {
                   : `Projected onto PC1: one number per point, keeping ${(kept * 100).toFixed(0)}% of the variance.`;
 
     return (
-        <Figure n={2} title="PCA is a rotation, then a projection" hint="Press play">
+        <Instrument hint="Press play">
             <FigureLayout
                 main={
                     <>
@@ -277,7 +277,7 @@ function RotateFigure() {
                     </div>
                 }
             />
-        </Figure>
+        </Instrument>
     );
 }
 
@@ -285,101 +285,61 @@ function RotateFigure() {
 // Lesson
 // ===========================================================================
 
+const SCENARIOS: Scenario[] = [
+    {
+        id: "best-line",
+        title: "Find the best line",
+        prompt: <>Drag to rotate the yellow line. Projecting onto it keeps the yellow part of the variance and loses the pink part. Find the angle that keeps the most, then check with <b>Find the best line</b>.</>,
+        render: () => <DirectionFigure />,
+    },
+    {
+        id: "round",
+        title: "A round cloud",
+        prompt: <>When the cloud is round, every direction keeps the same variance, the curve goes flat, and there is no meaningful first component. Stretch it back out.</>,
+        render: () => <DirectionFigure stretch={1} />,
+    },
+    {
+        id: "needle",
+        title: "Almost a line",
+        prompt: <>A very elongated cloud: one direction holds nearly all the variance, so one number per point loses almost nothing.</>,
+        render: () => <DirectionFigure stretch={0.08} />,
+    },
+    {
+        id: "rotate",
+        title: "Rotate, then project",
+        prompt: <>Press play. PCA centers the data and rotates it onto its principal axes. Watch the off-diagonal covariance go to zero, then drop the second axis.</>,
+        render: () => <RotateFigure />,
+    },
+];
+
 export default function Pca() {
     return (
-        <>
-            <p>
-                Real datasets often have hundreds of features, but much of that is redundant: height in centimeters and height in inches, or a dozen survey
-                questions that all measure the same mood. <strong>Principal component analysis</strong> finds the few directions along which the data
-                actually varies, so you can keep those and drop the rest. It is used to visualize, to compress, to denoise, and to speed up other
-                algorithms.
-            </p>
-            <p>
-                Everything about PCA can be seen in two dimensions, so that is where we will look. The goal there is to summarize each 2D point with a
-                single number without losing much.
-            </p>
-
-            <h2 id="projection">The best line to project onto</h2>
-            <p>
-                To summarize 2D points with one number, choose a line through the center of the data, with unit direction <M>{"\\yel{\\vu}"}</M>, and
-                record where each point lands when you drop it straight onto the line: <M>{"\\yel{\\vu}\\cdot(\\vx_i - \\bar\\vx)"}</M>. Some lines keep
-                the points well spread out along them. Others crush the points together and lose the differences between them. PCA picks the line along
-                which the projected points have the <strong>largest variance</strong>.
-            </p>
-
-            <DirectionFigure />
-
-            <p>
-                Notice the bar: the two colored pieces always add up to the same total. That is Pythagoras. For each point, the squared distance to the
-                center splits into a part along the line and a part perpendicular to it:
-            </p>
-            <MathBlock>{"\\lVert \\vx_i - \\bar\\vx \\rVert^2 = \\underbrace{\\big(\\yel{\\vu}\\cdot(\\vx_i - \\bar\\vx)\\big)^2}_{\\text{kept}} + \\underbrace{\\pnk{\\text{dist}(\\vx_i, \\text{line})^2}}_{\\text{lost}}"}</MathBlock>
-            <p>
-                The left side is fixed by the data. So <em>maximizing the variance you keep</em> and <em>minimizing the squared error you throw away</em>{" "}
-                are the same goal. The direction that best preserves the spread of the data is also the line that best fits it, in the perpendicular
-                least-squares sense. That is different from <Link to="/learn/linear-regression">linear regression</Link>, which only measures vertical
-                errors.
-            </p>
-
-            <h2 id="eigen">Where the answer comes from</h2>
-            <p>
-                Collect the data's spread into the <strong>covariance matrix</strong>{" "}
-                <M>{"\\Sigma = \\frac1n \\sum_i (\\vx_i - \\bar\\vx)(\\vx_i - \\bar\\vx)^\\top"}</M>. The variance along any unit direction is then a
-                quadratic form:
-            </p>
-            <MathBlock>{"\\operatorname{Var}\\big(\\yel{\\vu}\\cdot\\vx\\big) = \\yel{\\vu}^\\top \\Sigma\\, \\yel{\\vu}"}</MathBlock>
-            <p>
-                That is the yellow curve in Figure 1. Maximize it subject to <M>{"\\lVert\\vu\\rVert = 1"}</M> with a Lagrange multiplier and the
-                condition that pops out is
-            </p>
-            <MathBlock>{"\\Sigma\\, \\yel{\\vu} = \\lambda\\, \\yel{\\vu}"}</MathBlock>
-            <p>
-                The best direction is an <strong>eigenvector</strong> of the covariance matrix, and the variance it captures is its eigenvalue{" "}
-                <M>{"\\lambda"}</M>. The top eigenvector is the first <em>principal component</em>. The next one, orthogonal to it, captures the most of
-                what's left, and so on. In <M>{"d"}</M> dimensions there are <M>{"d"}</M> of them, ordered by eigenvalue.
-            </p>
-
-            <h2 id="rotation">PCA as a change of basis</h2>
-            <p>
-                Put all the principal components together and they form a new set of axes. Re-expressing the data in those axes is just a rotation, after
-                centering. In that frame the covariance matrix is <em>diagonal</em>: the new coordinates are uncorrelated, and their variances are the
-                eigenvalues. Dimensionality reduction is then the easy part: drop the axes with small eigenvalues.
-            </p>
-
-            <RotateFigure />
-
-            <p>
-                The fraction <M>{"\\lambda_1 / (\\lambda_1 + \\lambda_2)"}</M> is the <strong>explained variance</strong> of the first component. In high
-                dimensions you keep as many components as you need to explain, say, 95% of the variance. Image datasets with thousands of pixels are often
-                summarized well by a few dozen components.
-            </p>
-
-            <Callout kind="note" title="Caveats">
-                <ul>
-                    <li>
-                        <strong>Scale matters.</strong> PCA chases variance, so a feature measured in larger units dominates. Standardize features first
-                        unless their units are comparable.
-                    </li>
-                    <li>
-                        <strong>It is linear.</strong> PCA finds flat subspaces. Data on a curved surface, such as a spiral or a ring, needs nonlinear
-                        methods like kernel PCA, t-SNE, UMAP or autoencoders.
-                    </li>
-                    <li>
-                        <strong>Variance isn't importance.</strong> The direction that matters for your task, such as the one separating two classes, can
-                        have small variance and be the first thing PCA throws away.
-                    </li>
-                </ul>
-            </Callout>
-
-            <section className="takeaways">
-                <h2>Takeaways</h2>
-                <ul>
-                    <li>PCA projects data onto the directions of greatest variance. By Pythagoras, these are also the directions of least reconstruction error.</li>
-                    <li>Those directions are the eigenvectors of the covariance matrix, and the eigenvalues are the variances they capture.</li>
-                    <li>In the eigenvector basis the covariance is diagonal. Dropping low-variance axes is dimensionality reduction.</li>
-                    <li>Standardize first, and remember that PCA is linear and unsupervised.</li>
-                </ul>
-            </section>
-        </>
+        <Playground
+            scenarios={SCENARIOS}
+            explainer={
+                <>
+                    <ul>
+                        <li>
+                            Project centered data onto a unit direction <M>{"\\vu"}</M>. The variance it keeps is a quadratic form in the covariance matrix:
+                        </li>
+                    </ul>
+                    <MathBlock>{"\\operatorname{Var}(\\vu\\cdot\\vx) = \\vu^\\top\\Sigma\\,\\vu, \\qquad \\max_{\\lVert\\vu\\rVert = 1} \\vu^\\top\\Sigma\\vu \\;\\Rightarrow\\; \\Sigma\\vu = \\lambda\\vu"}</MathBlock>
+                    <ul>
+                        <li>
+                            The best direction is the top <strong>eigenvector</strong> of <M>{"\\Sigma"}</M>, and its eigenvalue is the variance captured.
+                            The next components are orthogonal and capture what's left.
+                        </li>
+                        <li>
+                            By Pythagoras, kept variance plus squared distance to the line equals the total. Maximizing the variance you keep is the same as
+                            minimizing the reconstruction error.
+                        </li>
+                        <li>
+                            In the eigenvector basis the covariance is diagonal. Dropping axes with small <M>{"\\lambda"}</M> is dimensionality reduction.
+                            Standardize features first, and remember PCA is linear.
+                        </li>
+                    </ul>
+                </>
+            }
+        />
     );
 }
