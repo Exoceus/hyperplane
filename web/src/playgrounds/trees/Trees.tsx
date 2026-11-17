@@ -10,7 +10,7 @@ import {drawLabelled} from "../../lib/data";
 import {ease, useTimeline} from "../../lib/hooks";
 import {heatImage, type View} from "../../lib/painter";
 import {C, classColor, rgba} from "../../lib/theme";
-import {forest_grid, make_blobs, make_linear, make_shape, randomSeed, tree_build, tree_depth_curve} from "../../lib/wasm";
+import {forest_tree_grids, make_blobs, make_linear, make_shape, randomSeed, tree_build, tree_depth_curve} from "../../lib/wasm";
 
 const VIEW: View = {xmin: -1.3, xmax: 1.3, ymin: -1.3, ymax: 1.3};
 const STRIDE = 9;
@@ -322,57 +322,77 @@ function TreeInstrument(props: {kind?: Kind; depth?: number; minLeaf?: number; n
 // One tree vs. a forest
 // ===========================================================================
 
-const G = 150;
+const G = 110;
 
 function ForestInstrument(props: {kind?: Kind; trees?: number; depth?: number}) {
     const [kind, setKind] = useState<Kind>(props.kind ?? "moons");
     const [seed, setSeed] = useState(8);
-    const [trees, setTrees] = useState(props.trees ?? 50);
+    const [trees, setTrees] = useState(props.trees ?? 60);
     const [depth, setDepth] = useState(props.depth ?? 10);
     const data = useMemo(() => generate(kind, 0.35, seed), [kind, seed]);
+    const classes = kind === "blobs" ? 3 : 2;
 
-    const tree = useMemo(() => parseTree(tree_build(data, depth, 1, 0)), [data, depth]);
-    const forest = useMemo(() => {
-        const g = forest_grid(data, trees, depth, 1, seed, VIEW.xmin, VIEW.xmax, VIEW.ymin, VIEW.ymax, G, G);
-        return heatImage(g, G, G, (c, i) => classRegionColor(c, Math.max(0, (g[2 * i + 1] - 0.5) * 2) * 0.85 + 0.15, 0.36), 2);
-    }, [data, trees, depth, seed]);
-    const leaves = tree.filter((n) => n.feature < 0);
+    // Every tree's prediction over the grid; the animation adds them one by one.
+    const grids = useMemo(() => forest_tree_grids(data, trees, depth, 1, seed, VIEW.xmin, VIEW.xmax, VIEW.ymin, VIEW.ymax, G, G), [data, trees, depth, seed]);
+    const tl = useTimeline(trees, 1, {autoplay: true, runKey: grids, duration: 5});
+    const shown = Math.max(1, Math.min(trees, Math.ceil(tl.t - 1e-9)));
+    const cells = G * G;
+
+    const latest = useMemo(() => {
+        const block = grids.subarray((shown - 1) * cells, shown * cells);
+        return heatImage(block, G, G, (c) => classRegionColor(c, 1, 0.36));
+    }, [grids, shown, cells]);
+
+    const vote = useMemo(() => {
+        const counts = new Uint16Array(cells * classes);
+        for (let t = 0; t < shown; t++) {
+            const off = t * cells;
+            for (let i = 0; i < cells; i++) counts[i * classes + grids[off + i]]++;
+        }
+        const out = new Float64Array(cells * 2);
+        for (let i = 0; i < cells; i++) {
+            let best = 0;
+            for (let c = 1; c < classes; c++) if (counts[i * classes + c] > counts[i * classes + best]) best = c;
+            out[2 * i] = best;
+            out[2 * i + 1] = counts[i * classes + best] / shown;
+        }
+        return heatImage(out, G, G, (c, i) => classRegionColor(c, Math.max(0, (out[2 * i + 1] - 1 / classes) / (1 - 1 / classes)) * 0.85 + 0.15, 0.36), 2);
+    }, [grids, shown, cells, classes]);
 
     return (
-        <Instrument hint="Same data, same depth: one tree versus the vote of many randomized trees">
+        <Instrument hint="Trees join the forest one at a time · each sees a different bootstrap sample and random features">
             <FigureLayout
                 sideWidth={280}
                 main={
-                    <div className="duo">
-                        <Panel label="One deep tree">
-                            <Plot
-                                label="Single decision tree regions"
-                                view={VIEW}
-                                draw={(p) => {
-                                    p.clear();
-                                    for (const n of leaves) {
-                                        const [r, g, b] = classRegionColor(n.majority, 1, 0.36);
-                                        const bx = n.box;
-                                        p.polyline([bx.xmin, bx.ymin, bx.xmax, bx.ymin, bx.xmax, bx.ymax, bx.xmin, bx.ymax], {close: true, fill: `rgb(${r},${g},${b})`, color: "none"});
-                                    }
-                                    p.grid(0.25, {axes: false});
-                                    drawLabelled(p, data, {r: 3.6});
-                                }}
-                            />
-                        </Panel>
-                        <Panel label={`Random forest · ${trees} trees`}>
-                            <Plot
-                                label="Random forest vote"
-                                view={VIEW}
-                                draw={(p) => {
-                                    p.clear();
-                                    p.image(forest, VIEW);
-                                    p.grid(0.25, {axes: false});
-                                    drawLabelled(p, data, {r: 3.6});
-                                }}
-                            />
-                        </Panel>
-                    </div>
+                    <>
+                        <div className="duo">
+                            <Panel label={`Tree #${shown} on its own`}>
+                                <Plot
+                                    label="The most recently added tree"
+                                    view={VIEW}
+                                    draw={(p) => {
+                                        p.clear();
+                                        p.image(latest, VIEW, false);
+                                        p.grid(0.25, {axes: false});
+                                        drawLabelled(p, data, {r: 3.4, alpha: 0.7});
+                                    }}
+                                />
+                            </Panel>
+                            <Panel label={`Vote of ${shown} tree${shown === 1 ? "" : "s"}`}>
+                                <Plot
+                                    label="Random forest vote so far"
+                                    view={VIEW}
+                                    draw={(p) => {
+                                        p.clear();
+                                        p.image(vote, VIEW);
+                                        p.grid(0.25, {axes: false});
+                                        drawLabelled(p, data, {r: 3.4});
+                                    }}
+                                />
+                            </Panel>
+                        </div>
+                        <Player timeline={tl} speeds={[0.5, 1, 3]} status={`${shown} of ${trees} trees · shading = how unanimous the vote is`} />
+                    </>
                 }
                 side={
                     <div className="controls">
@@ -380,8 +400,8 @@ function ForestInstrument(props: {kind?: Kind; trees?: number; depth?: number}) 
                         <Slider label="trees in the forest" value={trees} min={1} max={150} step={1} onChange={setTrees} format={(v) => v.toFixed(0)} color={C.green} />
                         <Slider label="max depth" value={depth} min={1} max={DEPTH_MAX} step={1} onChange={setDepth} format={(v) => v.toFixed(0)} color={C.yellow} />
                         <p className="note">
-                            Each forest tree trains on a <strong>bootstrap</strong> resample of the data, and every split considers only a random feature. The
-                            trees make different mistakes, so their vote averages the noise away. The shading shows how unanimous the vote is.
+                            Each tree alone is jagged and overfit (left). Because every tree trains on a <strong>bootstrap</strong> resample and picks a random
+                            feature at each split, they make <em>different</em> mistakes, and the vote (right) averages them away.
                         </p>
                         <div className="control-row">
                             <Button onClick={() => setSeed(randomSeed())}>New data</Button>
