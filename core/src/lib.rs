@@ -16,6 +16,7 @@
 
 pub mod contour;
 pub mod datasets;
+pub mod gmm;
 pub mod grid;
 pub mod kmeans;
 pub mod knn;

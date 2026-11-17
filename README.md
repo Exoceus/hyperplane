@@ -17,6 +17,7 @@ Everything runs in the browser. The algorithms live in a Rust crate compiled to 
 | Classification | Support vector machines | Widest street, soft margin and C, outliers, RBF γ overfitting, the kernel trick in 3D  |
 | Classification | Decision trees & forests | Grow a tree split by split, overfitting with depth, axis-aligned staircases, forest vs. tree |
 | Unsupervised   | k-means clustering   | Lloyd's algorithm phase by phase with Voronoi regions, draggable initial centroids, elbow |
+| Unsupervised   | Gaussian mixtures (EM) | Ellipses that stretch to fit, soft membership, k-means vs. GMM, too many components  |
 | Unsupervised   | PCA                  | Rotate a projection line (kept vs. lost variance); rotate into the eigenbasis and project |
 
 More are on the way: SVMs, the kernel trick, decision trees, backpropagation, regularization, and Gaussian mixtures.
