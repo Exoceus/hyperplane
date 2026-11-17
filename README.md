@@ -20,10 +20,11 @@ Everything runs in the browser. The algorithms live in a Rust crate compiled to 
 | Classification           | Neural networks              | Train live, a 3-neuron fence, no nonlinearity, ReLU folds, layers bending space             |
 | Clustering               | k-means                      | Lloyd's algorithm step by step, bad starts, wrong k, moons, the elbow                        |
 | Clustering               | Gaussian mixtures (EM)       | Ellipses that stretch to fit, soft membership, k-means vs. GMM, too many components         |
+| Clustering               | DBSCAN                       | Clusters spreading point to point, rings, noise, ε too small / too big, mixed density      |
 | Dimensionality reduction | PCA                          | Find the best line, round vs. needle clouds, rotate into the eigenbasis                      |
 | Reinforcement learning   | Q-learning                   | Editable gridworld, cliff walk, explore vs. exploit, discounting, value iteration           |
 
-Next up: naive Bayes and DBSCAN.
+Next up: naive Bayes, t-SNE and multi-armed bandits.
 
 ## Architecture
 
