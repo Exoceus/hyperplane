@@ -34,3 +34,4 @@ pub mod rl;
 pub mod rng;
 pub mod svm;
 pub mod tree;
+pub mod tsne;

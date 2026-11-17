@@ -211,3 +211,40 @@ mod tests {
         }
     }
 }
+
+/// Gaussian clusters in `dim` dimensions: `centers` holds `k · dim` values and
+/// `spreads` one standard deviation per cluster. Stride `dim + 1` (last = cluster).
+#[wasm_bindgen]
+pub fn make_clusters_nd(n: usize, centers: &[f64], spreads: &[f64], dim: usize, seed: u32) -> Vec<f64> {
+    let mut rng = Rng::new(seed);
+    let dim = dim.max(1);
+    let k = (centers.len() / dim).max(1);
+    let mut out = Vec::with_capacity(n * (dim + 1));
+    for i in 0..n {
+        let c = i % k;
+        let s = spreads.get(c).copied().unwrap_or(1.0);
+        for d in 0..dim {
+            out.push(centers.get(c * dim + d).copied().unwrap_or(0.0) + s * rng.normal());
+        }
+        out.push(c as f64);
+    }
+    out
+}
+
+/// A swiss roll in 3D. Stride 4: `[x, y, z, t]` where `t ∈ [0, 1]` is the
+/// position along the roll (useful for coloring).
+#[wasm_bindgen]
+pub fn make_swiss_roll(n: usize, noise: f64, seed: u32) -> Vec<f64> {
+    let mut rng = Rng::new(seed);
+    let mut out = Vec::with_capacity(n * 4);
+    for _ in 0..n {
+        let t = rng.uniform();
+        let angle = 1.5 * PI * (1.0 + 2.0 * t);
+        let h = rng.range(0.0, 1.0);
+        out.push(angle * angle.cos() / 10.0 + noise * rng.normal());
+        out.push(h * 2.0 - 1.0);
+        out.push(angle * angle.sin() / 10.0 + noise * rng.normal());
+        out.push(t);
+    }
+    out
+}

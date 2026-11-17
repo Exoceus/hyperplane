@@ -34,6 +34,7 @@ export const PLAYGROUNDS: PlaygroundMeta[] = [
     {slug: "neural-networks", title: "Neural Networks", tagline: "Train a network live and watch its layers bend space.", category: "classification", status: "live"},
     {slug: "k-means", title: "k-Means", tagline: "Assign, update, repeat: centroids hunting for clusters.", category: "clustering", status: "live"},
     {slug: "pca", title: "PCA", tagline: "Find the directions where the data actually varies.", category: "dimensionality", status: "live"},
+    {slug: "t-sne", title: "t-SNE", tagline: "Squeeze high-dimensional clusters into 2D, and see how the picture can mislead.", category: "dimensionality", status: "live"},
 
     {slug: "svm", title: "Support Vector Machines", tagline: "The widest street between two classes, and kernels that bend it.", category: "classification", status: "live"},
     {slug: "decision-trees", title: "Decision Trees & Forests", tagline: "Carve the plane into boxes, one question at a time.", category: "classification", status: "live"},
@@ -68,6 +69,7 @@ export const PLAYGROUND_COMPONENTS: Record<string, LazyExoticComponent<Component
     "gaussian-processes": lazy(() => import("./gp/Gp")),
     dbscan: lazy(() => import("./dbscan/Dbscan")),
     bandits: lazy(() => import("./bandits/Bandits")),
+    "t-sne": lazy(() => import("./tsne/Tsne")),
 };
 
 export function categoryOf(slug: string): Category | undefined {
