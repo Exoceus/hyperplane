@@ -14,6 +14,7 @@
 //!   centers, row-major, with row 0 at the **top** (`ymax`) so that it maps
 //!   straight onto an image (see [`grid::Grid`]).
 
+pub mod bandit;
 pub mod contour;
 pub mod datasets;
 pub mod dbscan;

@@ -43,6 +43,7 @@ export const PLAYGROUNDS: PlaygroundMeta[] = [
     {slug: "gaussian-mixtures", title: "Gaussian Mixtures (EM)", tagline: "Soft clusters with ellipses that stretch to fit.", category: "clustering", status: "live"},
     {slug: "dbscan", title: "DBSCAN", tagline: "Clusters as dense regions, with noise left out.", category: "clustering", status: "live"},
     {slug: "q-learning", title: "Q-Learning", tagline: "An agent learns a maze from rewards alone.", category: "reinforcement", status: "live"},
+    {slug: "bandits", title: "Multi-Armed Bandits", tagline: "Greedy, ε-greedy, UCB and Thompson sampling race for the best slot machine.", category: "reinforcement", status: "live"},
 ];
 
 export const LIVE = PLAYGROUNDS.filter((p) => p.status === "live");
@@ -66,6 +67,7 @@ export const PLAYGROUND_COMPONENTS: Record<string, LazyExoticComponent<Component
     overfitting: lazy(() => import("./overfitting/Overfitting")),
     "gaussian-processes": lazy(() => import("./gp/Gp")),
     dbscan: lazy(() => import("./dbscan/Dbscan")),
+    bandits: lazy(() => import("./bandits/Bandits")),
 };
 
 export function categoryOf(slug: string): Category | undefined {
