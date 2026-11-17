@@ -5,11 +5,13 @@ import {Instrument, Playground, type Scenario} from "../../components/Playground
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot} from "../../components/Plot";
+import {Plot3D} from "../../components/Plot3D";
+import {drawSurface} from "../../lib/scene3d";
 import {probabilityColor} from "../../lib/colors";
 import {drawLabelled} from "../../lib/data";
 import {ease, lerp, useAnimationFrame, useInView, useTimeline} from "../../lib/hooks";
 import {heatImage, type View} from "../../lib/painter";
-import {C, rgba, sequential, type RGB} from "../../lib/theme";
+import {C, CLASS_RGB, classColor, rgba, sequential, type RGB} from "../../lib/theme";
 import {contour_segments, make_shape, Mlp, randomSeed} from "../../lib/wasm";
 
 const VIEW: View = {xmin: -1.3, xmax: 1.3, ymin: -1.3, ymax: 1.3};
@@ -649,7 +651,100 @@ function WarpFigure(props: {shape?: "moons" | "xor" | "circles"}) {
 }
 
 // ===========================================================================
-// Lesson
+// The output as a 3D surface, folding while it trains
+// ===========================================================================
+
+const NS = 36;
+const SPAN = 1.25;
+
+/** Blue for p → 1, orange for p → 0. */
+function probRgb(p: number): [number, number, number] {
+    const a = CLASS_RGB[0];
+    const b = CLASS_RGB[1];
+    const t = Math.max(0, Math.min(1, p));
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+function Surface3D(props: {shape?: Shape; layers?: number[]}) {
+    const shape = props.shape ?? "circles";
+    const layers = useMemo(() => props.layers ?? [8, 8], [props.layers]);
+    const data = useMemo(() => make_shape(shape, 160, 0.08, 4), [shape]);
+    const [seed, setSeed] = useState(1);
+    const [running, setRunning] = useState(true);
+    const [frame, setFrame] = useState<{heights: Float64Array; loss: number; steps: number} | null>(null);
+    const [ref, visible] = useInView<HTMLDivElement>();
+    const sim = useRef<{net: Mlp; key: string} | null>(null);
+    const key = `${shape}|${layers.join("-")}|${seed}`;
+
+    useEffect(
+        () => () => {
+            sim.current?.net.free();
+            sim.current = null;
+        },
+        []
+    );
+
+    useAnimationFrame(() => {
+        let s = sim.current;
+        if (!s || s.key !== key) {
+            s?.net.free();
+            s = {net: new Mlp(new Uint32Array([2, ...layers, 1]), 0, seed), key};
+            sim.current = s;
+        }
+        if (!running && frame) return;
+        const loss = running && s.net.steps < 4000 ? s.net.train(data, 1, 0.015, 0, 1, 0) : s.net.loss(data);
+        const h = (2 * SPAN) / (NS - 1);
+        const p = s.net.predict_grid(-SPAN - h / 2, SPAN + h / 2, -SPAN - h / 2, SPAN + h / 2, NS, NS);
+        setFrame({heights: p, loss, steps: s.net.steps});
+    }, visible);
+
+    return (
+        <Instrument hint="Height = the network's probability of blue · blue points sit at height 1, orange at 0 · drag to orbit">
+            <div ref={ref}>
+                <FigureLayout
+                    main={
+                        <Plot3D
+                            label="Neural network output as a 3D surface"
+                            initial={{pitch: 0.45, yaw: 0.6}}
+                            draw={(sc) => {
+                                if (!frame) return;
+                                const heights = frame.heights.map((v) => v * 0.9 - 0.45);
+                                drawSurface(sc, heights, NS, (z) => probRgb((z + 0.45) / 0.9), {alpha: 0.88, wire: 5});
+                                for (let i = 0; i < data.length; i += 3) {
+                                    const c = data[i + 2];
+                                    sc.point([data[i] / SPAN, data[i + 1] / SPAN, c > 0.5 ? 0.47 : -0.47], classColor(c), 3.6, {bias: 0.01});
+                                }
+                            }}
+                        />
+                    }
+                    side={
+                        <div className="controls">
+                            <div className="control-row">
+                                <Button variant="primary" onClick={() => setRunning(!running)} title={running ? "Pause" : "Train"}>
+                                    {running ? Icon.pause : Icon.play}
+                                </Button>
+                                <Button onClick={() => setSeed(randomSeed())}>{Icon.reset} New weights</Button>
+                            </div>
+                            <Stats>
+                                <Stat label="training step" value={frame?.steps ?? 0} />
+                                <Stat label="loss" value={frame ? frame.loss.toFixed(3) : "—"} color={C.red} />
+                            </Stats>
+                            <p className="note">
+                                The network's output is a single sheet over the plane. Training pushes it up under blue points and down under orange
+                                ones, and with enough neurons it can fold into whatever shape that takes. Where the sheet crosses half height is the decision
+                                boundary.
+                            </p>
+                            <p className="note note-muted">Architecture 2 → {layers.join(" → ")} → 1, tanh, trained with Adam.</p>
+                        </div>
+                    }
+                />
+            </div>
+        </Instrument>
+    );
+}
+
+// ===========================================================================
+// Playground
 // ===========================================================================
 
 const SCENARIOS: Scenario[] = [
@@ -676,6 +771,18 @@ const SCENARIOS: Scenario[] = [
         title: "ReLU folds",
         prompt: <>ReLU networks build boundaries from straight folds, so you get polygonal edges instead of smooth curves.</>,
         render: () => <PlaygroundFigure shape="moons" act={1} layers={[6, 6]} noise={0.15} />,
+    },
+    {
+        id: "surface",
+        title: "Output surface in 3D",
+        prompt: <>The network's output as a 3D sheet. Blue points float at the top and orange ones rest on the bottom. Watch training fold the sheet into a dome that holds up the inner ring.</>,
+        render: () => <Surface3D />,
+    },
+    {
+        id: "surface-spiral",
+        title: "Folding a spiral (3D)",
+        prompt: <>A spiral needs a much more contorted sheet: ridges that wind around the center. Watch the network sculpt them over training.</>,
+        render: () => <Surface3D shape="spiral" layers={[10, 10, 10]} />,
     },
     {
         id: "bend",

@@ -5,11 +5,13 @@ import {Instrument, Playground, type Scenario} from "../../components/Playground
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Plot3D} from "../../components/Plot3D";
+import {drawSurface} from "../../lib/scene3d";
 import {probabilityColor} from "../../lib/colors";
 import {appendRow, drawLabelled, hitPoint, removeRow} from "../../lib/data";
 import {lerp, useTimeline} from "../../lib/hooks";
 import {heatImage, type View} from "../../lib/painter";
-import {C, classColor, rgba} from "../../lib/theme";
+import {C, CLASS_RGB, classColor, rgba} from "../../lib/theme";
 import {logreg_grid, logreg_loss, logreg_train, make_two_blobs, randomSeed} from "../../lib/wasm";
 
 const sigmoid = (z: number) => 1 / (1 + Math.exp(-z));
@@ -282,7 +284,75 @@ function PlaneFigure(props: {sep?: number; l2?: number}) {
 }
 
 // ===========================================================================
-// Lesson
+// The sigmoid as a 3D sheet
+// ===========================================================================
+
+const NS = 34;
+const SPAN = 1.3;
+
+function Sigmoid3D(props: {sep?: number}) {
+    const [sep, setSep] = useState(props.sep ?? 1.2);
+    const [l2, setL2] = useState(0);
+    const data = useMemo(() => make_two_blobs(90, sep, 0.24, 6), [sep]);
+    const traj = useMemo(() => logreg_train(data, new Float64Array([0, 0, 0]), 2, l2, 900, 6), [data, l2]);
+    const K = traj.length / 5 - 1;
+    const tl = useTimeline(K, 1, {autoplay: true, runKey: traj, duration: 6});
+    const k = Math.min(K, Math.floor(tl.t));
+    const k1 = Math.min(K, k + 1);
+    const s = tl.t - k;
+    const w1 = lerp(traj[5 * k], traj[5 * k1], s);
+    const w2 = lerp(traj[5 * k + 1], traj[5 * k1 + 1], s);
+    const b = lerp(traj[5 * k + 2], traj[5 * k1 + 2], s);
+    const heights = useMemo(() => {
+        const out = new Float64Array(NS * NS);
+        for (let j = 0; j < NS; j++)
+            for (let i = 0; i < NS; i++) {
+                const x = (-1 + (2 * i) / (NS - 1)) * SPAN;
+                const y = (1 - (2 * j) / (NS - 1)) * SPAN;
+                out[j * NS + i] = 0.9 / (1 + Math.exp(-(w1 * x + w2 * y + b))) - 0.45;
+            }
+        return out;
+    }, [w1, w2, b]);
+    const blend = (z: number): [number, number, number] => {
+        const t = (z + 0.45) / 0.9;
+        const a = CLASS_RGB[0];
+        const c = CLASS_RGB[1];
+        return [a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t, a[2] + (c[2] - a[2]) * t];
+    };
+
+    return (
+        <Instrument hint="Height = predicted probability of blue · drag to orbit">
+            <FigureLayout
+                main={
+                    <>
+                        <Plot3D
+                            label="Logistic regression's sigmoid surface in 3D"
+                            initial={{pitch: 0.4, yaw: 0.9}}
+                            draw={(sc) => {
+                                drawSurface(sc, heights, NS, blend, {alpha: 0.85, wire: 4});
+                                for (let i = 0; i < data.length; i += 3) sc.point([data[i] / SPAN, data[i + 1] / SPAN, data[i + 2] > 0.5 ? 0.47 : -0.47], classColor(data[i + 2]), 3.8, {bias: 0.01});
+                            }}
+                        />
+                        <Player timeline={tl} speeds={[0.5, 1, 3]} status={`Step ${k * 6}: ‖w‖ = ${Math.hypot(w1, w2).toFixed(2)}, so the ramp gets steeper as the model grows more confident`} />
+                    </>
+                }
+                side={
+                    <div className="controls">
+                        <Slider label="Class separation" value={sep} min={0.2} max={2.4} onChange={setSep} />
+                        <Slider label={<>L2 penalty <M>{"\\lambda"}</M></>} value={l2} min={0} max={0.05} step={0.001} onChange={setL2} color={C.purple} format={(v) => v.toFixed(3)} />
+                        <p className="note">
+                            Logistic regression is a single smooth step, <M>{"\\sigma(\\vw\\cdot\\vx + b)"}</M>, stretched over the plane. Training tilts it
+                            to face the right way, then steepens it. On separable data it keeps steepening toward a cliff unless L2 holds it back.
+                        </p>
+                    </div>
+                }
+            />
+        </Instrument>
+    );
+}
+
+// ===========================================================================
+// Playground
 // ===========================================================================
 
 const SCENARIOS: Scenario[] = [
@@ -303,6 +373,12 @@ const SCENARIOS: Scenario[] = [
         title: "Rein it in with L2",
         prompt: <>Same separable data with an L2 penalty on the weights. Now ‖w‖ levels off and the probabilities stay soft. Slide λ to trade confidence for caution.</>,
         render: () => <PlaneFigure sep={2.4} l2={0.01} />,
+    },
+    {
+        id: "3d",
+        title: "The sigmoid in 3D",
+        prompt: <>The model's probability as a sheet over the plane. Watch gradient descent tilt the S-shaped ramp to face the right way, then steepen it as confidence grows.</>,
+        render: () => <Sigmoid3D />,
     },
     {
         id: "sigmoid",
