@@ -105,6 +105,51 @@ pub fn linreg_gd(data: &[f64], m0: f64, b0: f64, lr: f64, steps: usize) -> Vec<f
     out
 }
 
+/// Full-batch gradient descent for least squares with `d` features on data
+/// with stride `d + 1` (features, then target). Starts at `init` (`d`
+/// weights then the bias). Returns stride `d + 2`: `[w…, b, mse]` for the
+/// start and every step.
+#[wasm_bindgen]
+pub fn lsq_gd(data: &[f64], d: usize, init: &[f64], lr: f64, steps: usize) -> Vec<f64> {
+    let stride = d + 1;
+    let n = (data.len() / stride).max(1) as f64;
+    let mut p: Vec<f64> = init.iter().take(d + 1).cloned().collect();
+    p.resize(d + 1, 0.0);
+    let mse = |p: &[f64]| {
+        data.chunks_exact(stride)
+            .map(|r| {
+                let pred: f64 = (0..d).map(|k| p[k] * r[k]).sum::<f64>() + p[d];
+                (pred - r[d]).powi(2)
+            })
+            .sum::<f64>()
+            / n
+    };
+    let mut out = Vec::with_capacity((steps + 1) * (d + 2));
+    out.extend_from_slice(&p);
+    out.push(mse(&p));
+    let mut grad = vec![0.0; d + 1];
+    for _ in 0..steps {
+        grad.iter_mut().for_each(|g| *g = 0.0);
+        for r in data.chunks_exact(stride) {
+            let err = (0..d).map(|k| p[k] * r[k]).sum::<f64>() + p[d] - r[d];
+            for k in 0..d {
+                grad[k] += 2.0 * err * r[k] / n;
+            }
+            grad[d] += 2.0 * err / n;
+        }
+        for k in 0..=d {
+            p[k] -= lr * grad[k];
+        }
+        let loss = mse(&p);
+        out.extend_from_slice(&p);
+        out.push(loss);
+        if !loss.is_finite() || loss > 1e8 {
+            break;
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,6 +165,20 @@ mod tests {
         let last = &traj[traj.len() - 3..];
         assert!((last[0] - fit[0]).abs() < 1e-6);
         assert!((last[1] - fit[1]).abs() < 1e-6);
+    }
+
+    #[test]
+    fn plane_gradient_descent_recovers_the_plane() {
+        let mut rng = crate::rng::Rng::new(5);
+        let mut data = Vec::new();
+        for _ in 0..200 {
+            let (a, b) = (rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
+            data.extend_from_slice(&[a, b, 0.6 * a - 0.4 * b + 0.2]);
+        }
+        let t = lsq_gd(&data, 2, &[0.0, 0.0, 0.0], 0.5, 500);
+        let last = &t[t.len() - 4..];
+        assert!((last[0] - 0.6).abs() < 1e-3 && (last[1] + 0.4).abs() < 1e-3 && (last[2] - 0.2).abs() < 1e-3, "{last:?}");
+        assert!(last[3] < 1e-6);
     }
 
     #[test]
