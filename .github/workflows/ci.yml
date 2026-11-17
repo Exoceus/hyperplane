@@ -1,0 +1,55 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    build:
+        name: build-and-test
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Rust
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: wasm32-unknown-unknown
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: core
+
+            - name: Install wasm-pack
+              uses: taiki-e/install-action@v2
+              with:
+                  tool: wasm-pack
+
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: npm
+
+            - name: Rust tests
+              working-directory: core
+              run: cargo test --release
+
+            - name: Install JS dependencies
+              run: npm ci --include=dev
+
+            - name: Build WebAssembly package
+              run: npm run build:wasm && npm run copy:wasm
+
+            - name: Lint
+              working-directory: web
+              run: npx eslint src
+
+            - name: Type-check and build site
+              run: npm run build:client
