@@ -65,14 +65,16 @@ const DRAW: Record<string, (p: Painter) => void> = {
         p.arrow(0.02, 0.04, 0.32, 0.54, {color: C.yellow, width: 2.5, head: 9});
     },
     "logistic-regression": (p) => {
-        const steps = 40;
-        for (let i = 0; i < steps; i++) {
-            const x0 = view.xmin + ((view.xmax - view.xmin) * i) / steps;
-            const x1 = x0 + (view.xmax - view.xmin) / steps + 0.01;
-            const s = 1 / (1 + Math.exp(-(x0 + 0.03) * 4.5));
-            const col = s > 0.5 ? C.blue : C.orange;
-            p.polyline([x0, view.ymin, x1, view.ymin, x1, view.ymax, x0, view.ymax], {close: true, fill: col, fillAlpha: Math.abs(s - 0.5) * 0.4, color: "none"});
+        // One smooth gradient instead of stripes, so there are no seams.
+        const ctx = p.ctx;
+        const g = ctx.createLinearGradient(0, 0, p.width, 0);
+        for (let i = 0; i <= 20; i++) {
+            const x = view.xmin + ((view.xmax - view.xmin) * i) / 20;
+            const s = 1 / (1 + Math.exp(-(x + 0.03) * 4.5));
+            g.addColorStop(i / 20, rgba(s > 0.5 ? C.blue : C.orange, Math.abs(s - 0.5) * 0.4));
         }
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, p.width, p.height);
         const pts: number[] = [];
         for (let i = 0; i <= 80; i++) {
             const x = -1.2 + (2.4 * i) / 80;

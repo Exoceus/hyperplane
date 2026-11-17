@@ -14,8 +14,10 @@ Everything runs in the browser. The algorithms live in a Rust crate compiled to 
 | Classification | Logistic regression  | Sigmoid and per-point cross-entropy; probability contours; why ‖w‖ blows up without L2   |
 | Classification | k-nearest neighbors  | Live decision regions, neighborhood shapes per metric, train vs. test accuracy over k    |
 | Classification | Neural networks      | A single neuron, a trainable network with per-neuron maps, and layers that bend the plane |
+| Unsupervised   | k-means clustering   | Lloyd's algorithm phase by phase with Voronoi regions, draggable initial centroids, elbow |
+| Unsupervised   | PCA                  | Rotate a projection line (kept vs. lost variance); rotate into the eigenbasis and project |
 
-More are on the way (k-means, PCA, SVMs, kernels, decision trees, backpropagation…).
+More are on the way: SVMs, the kernel trick, decision trees, backpropagation, regularization, and Gaussian mixtures.
 
 ## Architecture
 
