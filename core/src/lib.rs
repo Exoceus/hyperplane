@@ -26,3 +26,4 @@ pub mod optim;
 pub mod pca;
 pub mod perceptron;
 pub mod rng;
+pub mod svm;
