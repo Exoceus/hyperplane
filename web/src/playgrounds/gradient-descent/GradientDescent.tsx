@@ -5,6 +5,8 @@ import {Instrument, Playground, type Scenario} from "../../components/Playground
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Plot3D} from "../../components/Plot3D";
+import {drawSurface, pickVertex, type Vec3} from "../../lib/scene3d";
 import {clamp, fmt, lerp, useTimeline} from "../../lib/hooks";
 import {heatImage, type View} from "../../lib/painter";
 import {C, rgba, sequential} from "../../lib/theme";
@@ -338,7 +340,118 @@ function RaceFigure({surface = 0}: {surface?: number}) {
 }
 
 // ===========================================================================
-// Lesson
+// The same race on a 3D surface
+// ===========================================================================
+
+const N3 = 46;
+
+function Race3D({surface = 2}: {surface?: number}) {
+    const [si, setSi] = useState(surface);
+    const surf = SURFACES[si];
+    const [start, setStart] = useState<[number, number]>(surf.start);
+    const [enabled, setEnabled] = useState([true, true, false, true]);
+    const v = surf.view;
+    const cx = (v.xmin + v.xmax) / 2;
+    const cy = (v.ymin + v.ymax) / 2;
+    const half = Math.max(v.xmax - v.xmin, v.ymax - v.ymin) / 2;
+
+    // Heights at exact mesh vertices: shift the cell-centred grid by half a cell.
+    const field = useMemo(() => {
+        const h = (2 * half) / (N3 - 1);
+        const g = surface_grid(surf.id, cx - half - h / 2, cx + half + h / 2, cy - half - h / 2, cy + half + h / 2, N3, N3);
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const x of g) {
+            lo = Math.min(lo, x);
+            hi = Math.max(hi, x);
+        }
+        const height = (f: number) => (Math.log1p((Math.max(0, f - lo) / (hi - lo)) * 30) / Math.log1p(30)) * 0.95 - 0.45;
+        return {heights: g.map(height), height};
+    }, [surf, cx, cy, half]);
+
+    const runs = useMemo(() => OPTIMIZERS.map((o, i) => optimize(surf.id, o.id, start[0], start[1], surf.lr[i], STEPS)), [surf, start]);
+    const tl = useTimeline(STEPS, 1, {autoplay: true, runKey: runs, duration: 9});
+    const toScene = (x: number, y: number, f: number): Vec3 => [(x - cx) / half, (y - cy) / half, field.height(f) + 0.02];
+    const inBounds = (x: number, y: number) => Math.abs(x - cx) <= half && Math.abs(y - cy) <= half;
+
+    const choose = (i: number) => {
+        setSi(i);
+        setStart(SURFACES[i].start);
+    };
+
+    return (
+        <Instrument hint="Drag to orbit · click anywhere on the surface to drop the optimizers there">
+            <FigureLayout
+                sideWidth={280}
+                main={
+                    <>
+                        <Plot3D
+                            label="Optimizers rolling over a 3D loss surface"
+                            initial={{pitch: 0.62, yaw: 0.5}}
+                            onPick={(u, w, cam) => {
+                                const idx = pickVertex(cam, field.heights, N3, u, w);
+                                if (idx < 0) return;
+                                const i = idx % N3;
+                                const j = Math.floor(idx / N3);
+                                setStart([cx - half + (2 * half * i) / (N3 - 1), cy + half - (2 * half * j) / (N3 - 1)]);
+                            }}
+                            draw={(sc) => {
+                                drawSurface(sc, field.heights, N3, (h) => sequential(0.12 + 0.8 * ((h + 0.45) / 0.95)).map((c) => c * 0.95) as [number, number, number], {wire: 5});
+                                OPTIMIZERS.forEach((o, i) => {
+                                    if (!enabled[i]) return;
+                                    const r = runs[i];
+                                    const K = r.length / 3 - 1;
+                                    const upto = Math.min(K, Math.floor(tl.t));
+                                    let prev: Vec3 | null = null;
+                                    for (let k = 0; k <= upto; k++) {
+                                        const x = r[3 * k];
+                                        const y = r[3 * k + 1];
+                                        if (!inBounds(x, y)) break;
+                                        const pt = toScene(x, y, r[3 * k + 2]);
+                                        if (prev) sc.line(prev, pt, o.color, 2.2, {bias: 0.03});
+                                        prev = pt;
+                                    }
+                                    if (prev) sc.point(prev, o.color, 6.5, {bias: 0.06});
+                                });
+                                const [sx, sy] = start;
+                                sc.point([(sx - cx) / half, (sy - cy) / half, field.height(surface_eval(surf.id, sx, sy)[0]) + 0.03], C.white, 3.5, {ring: C.white, bias: 0.05});
+                            }}
+                        />
+                        <Player timeline={tl} speeds={[0.5, 1, 3]} status={surf.blurb} />
+                    </>
+                }
+                side={
+                    <div className="controls">
+                        <Segmented value={si} onChange={choose} options={SURFACES.map((x, i) => ({value: i, label: x.name}))} />
+                        {OPTIMIZERS.map((o, i) => {
+                            const r = runs[i];
+                            const k = Math.min(r.length / 3 - 1, Math.floor(tl.t));
+                            return (
+                                <label key={o.id} className="toggle">
+                                    <input type="checkbox" checked={enabled[i]} onChange={(e) => setEnabled(enabled.map((x, j) => (j === i ? e.target.checked : x)))} />
+                                    <span className="toggle-track" style={{background: enabled[i] ? o.color : undefined}} aria-hidden />
+                                    <span className="toggle-label" style={{color: o.color, fontWeight: 600}}>
+                                        {o.name}
+                                    </span>
+                                    <span className="mono" style={{marginLeft: "auto", color: "var(--muted)", fontSize: 12}}>
+                                        f = {fmt(r[3 * k + 2], 3)}
+                                    </span>
+                                </label>
+                            );
+                        })}
+                        <p className="note">
+                            Height is the loss (log-scaled so every surface fits). Valleys are dark, peaks are bright. Same optimizers and step sizes as
+                            the flat view.
+                        </p>
+                    </div>
+                }
+            />
+        </Instrument>
+    );
+}
+
+// ===========================================================================
+// Playground
 // ===========================================================================
 
 const SCENARIOS: Scenario[] = [
@@ -376,6 +489,18 @@ const SCENARIOS: Scenario[] = [
         title: "Bumpy landscape",
         prompt: <>Lots of local minima. Gradient descent stops in the first dip. Can momentum carry an optimizer over the bumps toward the center?</>,
         render: () => <RaceFigure surface={4} />,
+    },
+    {
+        id: "3d",
+        title: "In 3D",
+        prompt: <>The same race, on the actual surface. Drag to orbit and click anywhere to drop the balls there. Watch momentum overshoot up the far walls while Adam takes measured steps.</>,
+        render: () => <Race3D surface={2} />,
+    },
+    {
+        id: "3d-bumpy",
+        title: "Bumpy, in 3D",
+        prompt: <>Hills and dips in 3D. Gradient descent settles into the first dip. Can momentum's speed carry it over a ridge into a deeper basin? Click to try different starts.</>,
+        render: () => <Race3D surface={4} />,
     },
     {
         id: "overshoot",
