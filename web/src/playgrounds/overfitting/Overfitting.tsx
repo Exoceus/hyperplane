@@ -1,15 +1,15 @@
 import {useMemo, useState} from "react";
-import {Button, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
+import {Button, Player, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
 import {FigureLayout} from "../../components/Figure";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {Plot, type PlotPointer} from "../../components/Plot";
 import {hitPoint, setRow} from "../../lib/data";
-import {fmt} from "../../lib/hooks";
+import {fmt, lerp, useTimeline} from "../../lib/hooks";
 import type {View} from "../../lib/painter";
 import {C, rgba} from "../../lib/theme";
-import {constrained_quadratic, contour_segments, make_curve, poly_curve, poly_error_curve, poly_fit, randomSeed} from "../../lib/wasm";
+import {constrained_quadratic, contour_segments, make_curve, poly_curve, poly_error_curve, poly_fit, poly_gd_trace, randomSeed} from "../../lib/wasm";
 
 const VIEW: View = {xmin: -1.1, xmax: 1.1, ymin: -1.35, ymax: 1.35};
 const MAX_DEGREE = 20;
@@ -260,6 +260,118 @@ function GeometryInstrument(props: {norm?: number}) {
 }
 
 // ===========================================================================
+// Overfitting over time: gradient descent and early stopping
+// ===========================================================================
+
+const ES_FRAMES = 120;
+const ES_STEPS = 200_000;
+
+function EarlyStopping(props: {degree?: number}) {
+    const [seed, setSeed] = useState(7);
+    const [degree, setDegree] = useState(props.degree ?? 12);
+    const train = useMemo(() => make_curve(14, 0.18, seed), [seed]);
+    const test = useMemo(() => make_curve(300, 0.18, seed + 101), [seed]);
+    const trace = useMemo(() => poly_gd_trace(train, test, degree, 0.05, ES_STEPS, ES_FRAMES), [train, test, degree]);
+    const stride = degree + 4;
+    const F = trace.length / stride;
+    const tl = useTimeline(F - 1, 1, {autoplay: true, runKey: trace, duration: 9});
+    const f0 = Math.min(F - 1, Math.floor(tl.t));
+    const f1 = Math.min(F - 1, f0 + 1);
+    const s = tl.t - f0;
+    const coefs = useMemo(() => {
+        const c = new Float64Array(degree + 1);
+        for (let k = 0; k <= degree; k++) c[k] = lerp(trace[f0 * stride + 3 + k], trace[f1 * stride + 3 + k], s);
+        return c;
+    }, [trace, f0, f1, s, degree, stride]);
+    const curve = useMemo(() => poly_curve(coefs, VIEW.xmin, VIEW.xmax, 400), [coefs]);
+    const {trainErr, testErr, best} = useMemo(() => {
+        const tr = new Float64Array(F);
+        const te = new Float64Array(F);
+        let b = 0;
+        for (let i = 0; i < F; i++) {
+            tr[i] = trace[i * stride + 1] + 1e-5;
+            te[i] = trace[i * stride + 2] + 1e-5;
+            if (te[i] < te[b]) b = i;
+        }
+        return {trainErr: tr, testErr: te, best: b};
+    }, [trace, F, stride]);
+    const step = Math.round(lerp(trace[f0 * stride], trace[f1 * stride], s));
+    const pastBest = f0 > best;
+
+    return (
+        <Instrument hint="Gradient descent trains a high-degree polynomial; watch what it learns first, and what it learns last">
+            <FigureLayout
+                sideWidth={310}
+                main={
+                    <>
+                        <Plot
+                            label="Polynomial being trained by gradient descent"
+                            view={VIEW}
+                            aspect={0.62}
+                            draw={(p) => {
+                                p.clear();
+                                p.grid(0.25);
+                                const t: number[] = [];
+                                for (let i = 0; i <= 200; i++) {
+                                    const x = -1 + (2 * i) / 200;
+                                    t.push(x, truth(x));
+                                }
+                                p.polyline(t, {color: rgba(C.green, 0.55), width: 1.5, dash: [6, 6]});
+                                for (let i = 0; i < test.length; i += 2) p.circle(test[i], test[i + 1], 2.4, {stroke: rgba(C.muted, 0.5), width: 1});
+                                p.polyline(curve, {color: pastBest ? C.orange : C.yellow, width: 2.8});
+                                for (let i = 0; i < train.length; i += 2) p.point(train[i], train[i + 1], C.blue, {r: 5});
+                            }}
+                        />
+                        <Player
+                            timeline={tl}
+                            speeds={[0.5, 1, 3]}
+                            status={
+                                pastBest ? (
+                                    <span className="c-orange">Step {step.toLocaleString()}: still lowering training error, but now by memorizing noise, so test error is rising.</span>
+                                ) : (
+                                    <>Step {step.toLocaleString()}: the smooth trend comes first. The wiggly, high-degree parts are learned far more slowly.</>
+                                )
+                            }
+                        />
+                    </>
+                }
+                side={
+                    <div className="controls">
+                        <div className="panel-label">
+                            <span>Error vs. training steps (log)</span>
+                        </div>
+                        <LineChart
+                            label="Training and test error during training"
+                            series={[
+                                {values: trainErr, color: C.muted, dash: [4, 3], upto: tl.t},
+                                {values: testErr, color: C.green, upto: tl.t},
+                            ]}
+                            height={130}
+                            logY
+                            xMax={F - 1}
+                            marker={best}
+                            xLabel="steps 1 → 200k"
+                        />
+                        <p className="note">
+                            The dotted marker is where test error bottoms out. Stopping training there, called <strong>early stopping</strong>, acts like
+                            a regularizer: the model hasn't had time to fit the noise yet.
+                        </p>
+                        <Stats>
+                            <Stat label="train error" value={fmt(trainErr[f0] - 1e-5, 4)} />
+                            <Stat label="test error" value={fmt(testErr[f0] - 1e-5, 4)} color={pastBest ? C.orange : C.green} />
+                        </Stats>
+                        <Slider label="polynomial degree" value={degree} min={1} max={MAX_DEGREE} step={1} onChange={setDegree} format={(v) => v.toFixed(0)} color={C.yellow} />
+                        <div className="control-row">
+                            <Button onClick={() => setSeed(randomSeed())}>New sample</Button>
+                        </div>
+                    </div>
+                }
+            />
+        </Instrument>
+    );
+}
+
+// ===========================================================================
 // Playground
 // ===========================================================================
 
@@ -275,6 +387,12 @@ const SCENARIOS: Scenario[] = [
         title: "Find the sweet spot",
         prompt: <>Training error (dashed) falls with every extra degree, but test error (green) is U-shaped. Click the chart to try degrees and find the bottom of the U.</>,
         render: () => <PolyInstrument degree={3} />,
+    },
+    {
+        id: "early-stopping",
+        title: "Early stopping",
+        prompt: <>Watch gradient descent train a degree-12 polynomial. It learns the smooth trend first and only much later bends to memorize the noise. Test error bottoms out in between, and that is the moment to stop.</>,
+        render: () => <EarlyStopping />,
     },
     {
         id: "ridge",
