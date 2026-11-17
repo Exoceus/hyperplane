@@ -59,7 +59,16 @@ type Mode = "idle" | "play" | "step";
  * toward a target, so a single "step" is a short tween rather than a jump —
  * you get to watch each quantity move.
  */
-export function useTimeline(length: number, initialSpeed = 2): Timeline {
+export interface TimelineOptions {
+    /** Start playing on mount, and replay from the start whenever `runKey` changes. */
+    autoplay?: boolean;
+    /** Identity of the current run (e.g. the memoized result of the algorithm). */
+    runKey?: unknown;
+    /** Seconds to hold on the first frame before an automatic replay starts. */
+    delay?: number;
+}
+
+export function useTimeline(length: number, initialSpeed = 2, opts: TimelineOptions = {}): Timeline {
     const [t, setTState] = useState(0);
     const [speed, setSpeed] = useState(initialSpeed);
     const [mode, setMode] = useState<Mode>("idle");
@@ -86,6 +95,28 @@ export function useTimeline(length: number, initialSpeed = 2): Timeline {
         setT(next);
         if (next === target) setMode("idle");
     }, mode !== "idle");
+
+    // Autoplay: whenever the run changes (inputs or parameters were edited),
+    // rewind and play it again so the algorithm is always visibly working.
+    const {autoplay = false, runKey, delay = 0.35} = opts;
+    const [seenKey, setSeenKey] = useState<unknown>(runKey);
+    if (autoplay && !Object.is(seenKey, runKey)) {
+        // Rewind immediately (during render) so the new run never flashes its final frame.
+        setSeenKey(runKey);
+        setTState(0);
+        setMode("idle");
+    }
+    useEffect(() => {
+        if (!autoplay) return;
+        tRef.current = 0;
+        targetRef.current = 0;
+        const timer = window.setTimeout(() => {
+            setT(0);
+            targetRef.current = lenRef.current;
+            setMode("play");
+        }, delay * 1000);
+        return () => window.clearTimeout(timer);
+    }, [autoplay, runKey, delay, setT]);
 
 
     const play = useCallback(() => {

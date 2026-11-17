@@ -157,7 +157,7 @@ function PlaygroundFigure(props: {shape?: Shape; layers?: number[]; act?: number
     const [layers, setLayers] = useState<number[]>(props.layers ?? [8, 8]);
     const [act, setAct] = useState(props.act ?? 0);
     const [lr, setLr] = useState(0.02);
-    const [running, setRunning] = useState(false);
+    const [running, setRunning] = useState(true);
     const [netSeed, setNetSeed] = useState(1);
     const [frame, setFrame] = useState<Frame | null>(null);
     const [lossHistory, setLossHistory] = useState<number[]>([]);
@@ -215,7 +215,6 @@ function PlaygroundFigure(props: {shape?: Shape; layers?: number[]; act?: number
     const setLayer = (i: number, n: number) => setLayers(layers.map((v, j) => (j === i ? Math.max(1, Math.min(8, n)) : v)));
     const reset = () => {
         setNetSeed(randomSeed());
-        setRunning(false);
     };
 
     // Network diagram layout in its own coordinate system.
@@ -233,7 +232,7 @@ function PlaygroundFigure(props: {shape?: Shape; layers?: number[]; act?: number
     const status = frame ? `step ${frame.steps} · loss ${frame.loss.toFixed(3)} · accuracy ${Math.round(frame.acc * 100)}%` : "";
 
     return (
-        <Instrument hint="Press play, then change the architecture and try again">
+        <Instrument hint="Training live · change the data, architecture or activation and watch it relearn">
             <div ref={ref}>
                 <FigureLayout
                     sideWidth={300}
@@ -312,7 +311,7 @@ function PlaygroundFigure(props: {shape?: Shape; layers?: number[]; act?: number
                     }
                     side={
                         <div className="controls">
-                            <Segmented value={shape} onChange={(v) => (setShape(v), setRunning(false))} options={SHAPES} />
+                            <Segmented value={shape} onChange={setShape} options={SHAPES} />
                             <Slider label="noise" value={noise} min={0} max={0.5} onChange={setNoise} />
                             <div className="control-row">
                                 <Button onClick={() => setDataSeed(randomSeed())}>New sample</Button>
@@ -566,7 +565,7 @@ function WarpFigure(props: {shape?: "moons" | "xor" | "circles"}) {
     const layerName = t < 0.02 ? "input space" : t > HIDDEN - 0.02 ? `after hidden layer ${HIDDEN}: a straight line now separates the classes` : `between layer ${l0} and ${l0 + 1}`;
 
     return (
-        <Instrument hint="Press play to morph through the layers">
+        <Instrument hint="Play to morph the plane through each layer">
             <div ref={ref}>
                 <FigureLayout
                     main={
@@ -657,7 +656,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "spiral",
         title: "Untangle a spiral",
-        prompt: <>Press play. Each little square is one neuron's response over the whole plane. Watch the simple early-layer edges combine into the spiral.</>,
+        prompt: <>Each little square is one neuron's response over the whole plane. Watch the simple early-layer edges combine into the spiral.</>,
         render: () => <PlaygroundFigure />,
     },
     {

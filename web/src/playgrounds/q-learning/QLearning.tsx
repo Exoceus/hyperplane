@@ -162,7 +162,7 @@ function QInstrument(props: QProps) {
     const [slip, setSlip] = useState(props.slip ?? 0);
     const [stepReward, setStepReward] = useState(props.stepReward ?? -0.01);
     const [speed, setSpeed] = useState(props.speed ?? 12);
-    const [running, setRunning] = useState(false);
+    const [running, setRunning] = useState(true);
     const [showQ, setShowQ] = useState(false);
     const [tool, setTool] = useState(1);
     const [painting, setPainting] = useState(false);
@@ -248,7 +248,7 @@ function QInstrument(props: QProps) {
     const slowEnough = speed <= 30;
 
     return (
-        <Instrument hint="Press play to let the agent explore · paint the grid to change the world">
+        <Instrument hint="The agent is exploring live · paint the grid to change its world">
             <div ref={ref}>
                 <FigureLayout
                     sideWidth={300}
@@ -331,7 +331,8 @@ function ValueIterationInstrument(props: {map?: MapName}) {
     const [stepReward, setStepReward] = useState(0);
     const [tool, setTool] = useState(1);
     const [painting, setPainting] = useState(false);
-    const tl = useTimeline(SWEEPS, 3);
+    const viKey = useMemo(() => ({cells, gamma, slip, stepReward}), [cells, gamma, slip, stepReward]);
+    const tl = useTimeline(SWEEPS, 3, {autoplay: true, runKey: viKey});
     const sweep = Math.floor(tl.t + 1e-9);
     const q = useMemo(() => value_iteration(base.w, base.h, cells, gamma, stepReward, slip, sweep), [base, cells, gamma, stepReward, slip, sweep]);
 
@@ -349,7 +350,7 @@ function ValueIterationInstrument(props: {map?: MapName}) {
     };
 
     return (
-        <Instrument hint="Press play: each sweep is one round of Bellman backups over every cell">
+        <Instrument hint="Each sweep is one round of Bellman backups over every cell · paint to replan">
             <FigureLayout
                 sideWidth={300}
                 main={
@@ -393,7 +394,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "maze",
         title: "Find the goal",
-        prompt: <>Press play. At first the agent stumbles around at random. Every time it reaches the goal, value leaks one step further back, and the arrows line up into a route. Hit "Train 100 episodes" to fast-forward.</>,
+        prompt: <>At first the agent stumbles around at random. Every time it reaches the goal, value leaks one step further back, and the arrows line up into a route. Hit "Train 100 episodes" to fast-forward.</>,
         render: () => <QInstrument />,
     },
     {
@@ -423,7 +424,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "build",
         title: "Build a world",
-        prompt: <>An empty room. Paint walls, pits and goals, then press play. Try a pit right next to the shortest path, or a second goal.</>,
+        prompt: <>An empty room. Paint walls, pits and goals while the agent explores. Try a pit right next to the shortest path, or a second goal.</>,
         render: () => <QInstrument map="open" speed={60} />,
     },
 ];

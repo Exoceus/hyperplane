@@ -172,7 +172,7 @@ function UpdatesFigure({seed: seed0 = 3}: {seed?: number}) {
         return out;
     }, [data, w0]);
     const K = run.history.length / STRIDE - 1;
-    const tl = useTimeline(K, 1);
+    const tl = useTimeline(K, 1, {autoplay: true, runKey: run, delay: 0.8});
 
     const H = run.history;
     const wAt = (k: number) => ({w1: H[k * STRIDE], w2: H[k * STRIDE + 1]});
@@ -364,7 +364,7 @@ function ConvergenceFigure(props: {n?: number; margin?: number; noise?: number; 
         return out;
     }, [data]);
     const K = run.history.length / STRIDE - 1;
-    const tl = useTimeline(K, 6);
+    const tl = useTimeline(K, 6, {autoplay: true, runKey: run});
     const H = run.history;
 
     const u = Math.min(K, Math.max(0, Math.ceil(tl.t - 1e-9)));
@@ -437,7 +437,7 @@ function ConvergenceFigure(props: {n?: number; margin?: number; noise?: number; 
                                                 ? C.red
                                                 : undefined,
                                 });
-                                if (u === 0) p.textPx("𝐰 = 0: no boundary yet. Press play.", p.width / 2, 26, {align: "center", color: C.text2, size: 13});
+                                if (u === 0) p.textPx("𝐰 = 0: no boundary yet", p.width / 2, 26, {align: "center", color: C.text2, size: 13});
                             }}
                         />
                         <Player
@@ -523,7 +523,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "separable",
         title: "Separable data",
-        prompt: <>Press play. The boundary jumps after every mistake, then locks in once every point is on the right side.</>,
+        prompt: <>The boundary jumps after every mistake, then locks in once every point is on the right side.</>,
         render: () => <ConvergenceFigure />,
     },
     {

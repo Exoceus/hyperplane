@@ -101,7 +101,7 @@ function GmmInstrument(props: {kind?: Kind; k?: number}) {
     const n = points.length / 2;
     const run = useMemo(() => fit(points, k, initSeed), [points, k, initSeed]);
     const T = run.iterations;
-    const tl = useTimeline(T, 4);
+    const tl = useTimeline(T, 4, {autoplay: true, runKey: run});
 
     const i0 = Math.min(T, Math.floor(tl.t));
     const i1 = Math.min(T, i0 + 1);
@@ -126,7 +126,7 @@ function GmmInstrument(props: {kind?: Kind; k?: number}) {
     const ll = run.ll[i0];
 
     return (
-        <Instrument hint="Press play to run EM · each iteration re-weights points (E) and refits every ellipse (M)">
+        <Instrument hint="Each EM iteration re-weights the points (E) and refits every ellipse (M); change anything to rerun">
             <FigureLayout
                 main={
                     <>
@@ -263,7 +263,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "stretched",
         title: "Stretched clusters",
-        prompt: <>Press play. Each iteration, the ellipses shift, rotate and stretch to fit the long, thin clusters. That is something k-means' round clusters can't do.</>,
+        prompt: <>Each iteration, the ellipses shift, rotate and stretch to fit the long, thin clusters. That is something k-means' round clusters can't do.</>,
         render: () => <GmmInstrument />,
     },
     {

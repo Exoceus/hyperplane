@@ -137,7 +137,7 @@ function TreeInstrument(props: {kind?: Kind; depth?: number; minLeaf?: number; n
     const test = useMemo(() => generate(kind, noise, seed + 7919), [kind, noise, seed]);
     const nodes = useMemo(() => parseTree(tree_build(data, depth, minLeaf, criterion)), [data, depth, minLeaf, criterion]);
     const splits = nodes.filter((n) => n.feature >= 0).length;
-    const tl = useTimeline(splits, 3);
+    const tl = useTimeline(splits, 3, {autoplay: true, runKey: nodes});
     const done = Math.floor(tl.t + 1e-9);
     const growing = tl.t - done;
     const leaves = frontier(nodes, done);
@@ -164,7 +164,7 @@ function TreeInstrument(props: {kind?: Kind; depth?: number; minLeaf?: number; n
     const next = nodes.find((n) => n.rank === done);
 
     return (
-        <Instrument hint="Press play to grow the tree one split at a time · hover the plane to trace a point down the tree">
+        <Instrument hint="The tree grows one split at a time; change anything to regrow it · hover to trace a point down the tree">
             <FigureLayout
                 sideWidth={300}
                 main={
@@ -401,7 +401,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "grow",
         title: "Grow a tree",
-        prompt: <>Press play. Each split asks one yes/no question about one feature, chosen greedily to make the two halves as pure as possible. Hover to trace a point down the tree.</>,
+        prompt: <>Each split asks one yes/no question about one feature, chosen greedily to make the two halves as pure as possible. Hover to trace a point down the tree.</>,
         render: () => <TreeInstrument />,
     },
     {
