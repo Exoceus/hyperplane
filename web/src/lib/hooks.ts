@@ -11,7 +11,9 @@ export function useAnimationFrame(cb: (dt: number) => void, active: boolean) {
         let raf = 0;
         let last = performance.now();
         const loop = (now: number) => {
-            const dt = Math.min(0.1, (now - last) / 1000);
+            // rAF timestamps can be slightly earlier than performance.now() at
+            // scheduling time, so the first dt may be negative: clamp it.
+            const dt = Math.max(0, Math.min(0.1, (now - last) / 1000));
             last = now;
             cbRef.current(dt);
             raf = requestAnimationFrame(loop);
@@ -169,7 +171,7 @@ export function useTimeline(length: number, initialSpeed = 2, opts: TimelineOpti
     const playing = mode === "play";
     const toggle = useCallback(() => (playing ? pause() : play()), [playing, pause, play]);
 
-    const tc = Math.min(t, len);
+    const tc = Math.max(0, Math.min(t, len));
     return {t: tc, length: len, playing, atEnd: tc >= len, play, pause, toggle, stepForward, stepBack, reset, seek, speed, setSpeed};
 }
 
