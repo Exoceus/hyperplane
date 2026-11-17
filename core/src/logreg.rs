@@ -56,7 +56,7 @@ pub fn logreg_train(data: &[f64], init: &[f64], lr: f64, l2: f64, steps: usize, 
     let mut grad = vec![0.0; d + 1];
     let record_every = record_every.max(1);
     let mut out = Vec::new();
-    let mut record = |params: &[f64], out: &mut Vec<f64>| {
+    let record = |params: &[f64], out: &mut Vec<f64>| {
         let (loss, acc) = loss_and_acc(data, params, l2);
         out.extend_from_slice(params);
         out.push(loss);
