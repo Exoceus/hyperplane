@@ -22,10 +22,11 @@ Everything runs in the browser. The algorithms live in a Rust crate compiled to 
 | Clustering               | Gaussian mixtures (EM)       | Ellipses that stretch to fit, soft membership, k-means vs. GMM, too many components         |
 | Clustering               | DBSCAN                       | Clusters spreading point to point, rings, noise, ε too small / too big, mixed density      |
 | Dimensionality reduction | PCA                          | Find the best line, round vs. needle clouds, rotate into the eigenbasis                      |
+| Dimensionality reduction | t-SNE                        | Clusters PCA can't see, perplexity, cluster sizes and distances that lie, swiss roll       |
 | Reinforcement learning   | Multi-armed bandits          | Thompson's beliefs, greedy getting stuck, UCB optimism, close calls, many arms              |
 | Reinforcement learning   | Q-learning                   | Editable gridworld, cliff walk, explore vs. exploit, discounting, value iteration           |
 
-Next up: naive Bayes and t-SNE.
+Next up: naive Bayes, and step-by-step animations for every playground.
 
 ## Architecture
 
