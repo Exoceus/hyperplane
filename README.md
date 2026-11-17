@@ -15,6 +15,7 @@ Everything runs in the browser. The algorithms live in a Rust crate compiled to 
 | Classification           | Perceptron                   | Separable vs. noisy data, a razor-thin margin, updates in weight space, classify by hand     |
 | Classification           | Logistic regression          | Overlap vs. separable data, ‖w‖ blowing up without L2, per-point cross-entropy              |
 | Classification           | k-nearest neighbors          | k = 1 memorizing, smoothing, distance metrics, draw your own data                            |
+| Classification           | Naive Bayes                  | Learn from a stream, curved boundaries, the naive assumption vs. QDA, densities as 3D hills |
 | Classification           | Support vector machines      | Widest street, soft margin and C, outliers, RBF γ overfitting, the kernel trick in 3D        |
 | Classification           | Decision trees & forests     | Grow a tree split by split, too deep, axis-aligned staircases, forest vs. tree              |
 | Classification           | Neural networks              | Train live, a 3-neuron fence, no nonlinearity, ReLU folds, layers bending space             |
@@ -26,7 +27,7 @@ Everything runs in the browser. The algorithms live in a Rust crate compiled to 
 | Reinforcement learning   | Multi-armed bandits          | Thompson's beliefs, greedy getting stuck, UCB optimism, close calls, many arms              |
 | Reinforcement learning   | Q-learning                   | Editable gridworld, cliff walk, explore vs. exploit, discounting, value iteration           |
 
-Next up: naive Bayes, and step-by-step animations for every playground.
+Every playground animates its algorithm step by step, and several have orbitable 3D views.
 
 ## Architecture
 

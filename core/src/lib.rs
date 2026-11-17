@@ -15,6 +15,7 @@
 //!   straight onto an image (see [`grid::Grid`]).
 
 pub mod bandit;
+pub mod bayes;
 pub mod contour;
 pub mod datasets;
 pub mod dbscan;
