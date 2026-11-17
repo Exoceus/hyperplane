@@ -95,6 +95,33 @@ pub fn pca(points: &[f64], d: usize) -> Vec<f64> {
     out
 }
 
+/// Power iteration on a symmetric `d × d` matrix from `v0`: returns
+/// `iters + 1` unit vectors (stride `d`), the start included. Repeatedly
+/// multiplying by Σ and renormalizing turns any start toward the top
+/// eigenvector.
+#[wasm_bindgen]
+pub fn power_iteration(mat: &[f64], d: usize, v0: &[f64], iters: usize) -> Vec<f64> {
+    let d = d.max(1);
+    let norm = |v: &[f64]| v.iter().map(|x| x * x).sum::<f64>().sqrt().max(1e-300);
+    let mut v: Vec<f64> = v0.iter().take(d).cloned().collect();
+    v.resize(d, 0.0);
+    let n0 = norm(&v);
+    v.iter_mut().for_each(|x| *x /= n0);
+    let mut out = v.clone();
+    for _ in 0..iters {
+        let mut w = vec![0.0; d];
+        for i in 0..d {
+            for j in 0..d {
+                w[i] += mat[i * d + j] * v[j];
+            }
+        }
+        let n = norm(&w);
+        v = w.iter().map(|x| x / n).collect();
+        out.extend_from_slice(&v);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,6 +141,16 @@ mod tests {
         // Eigenvectors orthonormal.
         let dot = r[8] * r[10] + r[9] * r[11];
         assert!(dot.abs() < 1e-9);
+    }
+
+    #[test]
+    fn power_iteration_finds_the_top_eigenvector() {
+        let m = [2.0, 0.8, 0.8, 1.0];
+        let path = power_iteration(&m, 2, &[-0.2, 1.0], 40);
+        let last = &path[path.len() - 2..];
+        let (_, vecs) = symmetric_eigen(&m, 2);
+        let cos = (last[0] * vecs[0] + last[1] * vecs[1]).abs();
+        assert!(cos > 1.0 - 1e-9, "cos {cos}");
     }
 
     #[test]
