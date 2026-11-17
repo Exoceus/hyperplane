@@ -246,6 +246,32 @@ pub fn forest_grid(data: &[f64], trees: usize, max_depth: usize, min_leaf: usize
     out
 }
 
+/// Every tree of a random forest evaluated over a grid: `trees` blocks of
+/// `nx · ny` class indices (u8), so the UI can add trees one at a time.
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn forest_tree_grids(data: &[f64], trees: usize, max_depth: usize, min_leaf: usize, seed: u32, xmin: f64, xmax: f64, ymin: f64, ymax: f64, nx: usize, ny: usize) -> Vec<u8> {
+    let (pts, classes) = parse(data);
+    let g = Grid::new(xmin, xmax, ymin, ymax, nx, ny);
+    let mut out = Vec::with_capacity(trees * g.len());
+    if pts.is_empty() {
+        return vec![0; trees * g.len()];
+    }
+    let mut rng = Rng::new(seed);
+    let p = Params { max_depth, min_leaf: min_leaf.max(1), criterion: 0, random_feature: true };
+    for _ in 0..trees {
+        let sample: Vec<usize> = (0..pts.len()).map(|_| rng.below(pts.len())).collect();
+        let tree = build(&pts, sample, classes, p, &mut rng);
+        for j in 0..g.ny {
+            let y = g.y(j);
+            for i in 0..g.nx {
+                out.push(predict(&tree, g.x(i), y) as u8);
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,6 +318,18 @@ mod tests {
         assert!(last_train > 0.99);
         let best_test = curve.chunks(2).map(|c| c[1]).fold(0.0, f64::max);
         assert!(best_test > 0.8);
+    }
+
+    #[test]
+    fn tree_grids_agree_with_forest_vote() {
+        let data = make_shape("moons", 120, 0.2, 5);
+        let grids = forest_tree_grids(&data, 9, 6, 1, 3, -1.0, 1.0, -1.0, 1.0, 10, 10);
+        let vote = forest_grid(&data, 9, 6, 1, 3, -1.0, 1.0, -1.0, 1.0, 10, 10);
+        for cell in 0..100 {
+            let ones = (0..9).filter(|t| grids[t * 100 + cell] == 1).count();
+            let winner = if ones * 2 > 9 { 1.0 } else { 0.0 };
+            assert_eq!(vote[2 * cell], winner);
+        }
     }
 
     #[test]

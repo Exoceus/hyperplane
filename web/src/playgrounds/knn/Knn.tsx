@@ -1,5 +1,5 @@
 import {useMemo, useState} from "react";
-import {Button, Segmented, Slider} from "../../components/Controls";
+import {Button, Player, Segmented, Slider} from "../../components/Controls";
 import {FigureLayout} from "../../components/Figure";
 import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
@@ -7,12 +7,14 @@ import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
 import {classRegionColor} from "../../lib/colors";
 import {appendRow, drawLabelled, hitPoint, removeRow} from "../../lib/data";
+import {useTimeline} from "../../lib/hooks";
 import {heatImage, type Painter, type View} from "../../lib/painter";
 import {C, classColor, rgba} from "../../lib/theme";
 import {knn_accuracy_curve, knn_grid, knn_query, make_blobs, make_shape, randomSeed} from "../../lib/wasm";
 
 const VIEW: View = {xmin: -1.3, xmax: 1.3, ymin: -1.3, ymax: 1.3};
 const G = 200;
+const SCAN = 44;
 const KMAX = 40;
 
 type Kind = "blobs" | "moons" | "circles" | "xor" | "spiral";
@@ -64,6 +66,24 @@ function KnnFigure(props: {kind?: Kind; noise?: number; k?: number; metric?: num
         return heatImage(g, G, G, (c, i) => classRegionColor(c, 0.3 + 0.7 * g[2 * i + 1], 0.3), 2);
     }, [data, k, metric]);
 
+    // The scan: the same classifier evaluated cell by cell on a coarse grid,
+    // replayed in reading order so you can watch each query get answered.
+    const scan = useMemo(() => knn_grid(data, k, metric, VIEW.xmin, VIEW.xmax, VIEW.ymin, VIEW.ymax, SCAN, SCAN), [data, k, metric]);
+    const tl = useTimeline(SCAN * SCAN, 1, {autoplay: true, runKey: scan, duration: 6});
+    const scanning = !tl.atEnd;
+    const cell = Math.min(SCAN * SCAN - 1, Math.floor(tl.t));
+    const painted = useMemo(
+        () => heatImage(scan, SCAN, SCAN, (c, i) => (i <= cell ? [...classRegionColor(c, 0.3 + 0.7 * scan[2 * i + 1], 0.34), 255] : [0, 0, 0, 0]) as [number, number, number, number], 2),
+        [scan, cell]
+    );
+    const probe = useMemo(
+        () =>
+            scanning
+                ? {x: VIEW.xmin + ((cell % SCAN) + 0.5) * ((VIEW.xmax - VIEW.xmin) / SCAN), y: VIEW.ymax - (Math.floor(cell / SCAN) + 0.5) * ((VIEW.ymax - VIEW.ymin) / SCAN)}
+                : query,
+        [scanning, cell, query]
+    );
+
     const curve = useMemo(() => {
         const c = knn_accuracy_curve(data, test, KMAX, metric);
         const train = new Float64Array(KMAX);
@@ -76,14 +96,14 @@ function KnnFigure(props: {kind?: Kind; noise?: number; k?: number; metric?: num
     }, [data, test, metric]);
 
     const neighbours = useMemo(() => {
-        if (!query) return null;
-        const r = knn_query(data, query.x, query.y, k, metric);
+        if (!probe) return null;
+        const r = knn_query(data, probe.x, probe.y, k, metric);
         const kk = r.length / 2;
         const idx = Array.from(r.subarray(0, kk));
         const votes = new Array(numClasses).fill(0);
         for (const i of idx) votes[data[3 * i + 2]]++;
         return {idx, radius: r[r.length - 1], votes};
-    }, [data, query, k, metric, numClasses]);
+    }, [data, probe, k, metric, numClasses]);
 
     const onPointer = (e: PlotPointer) => {
         if (e.type === "move" || e.type === "down") setQuery({x: e.x, y: e.y});
@@ -98,10 +118,11 @@ function KnnFigure(props: {kind?: Kind; noise?: number; k?: number; metric?: num
     const reset = () => setExtra(new Float64Array());
 
     return (
-        <Instrument hint="Hover to probe · click to add a point of the chosen class">
+        <Instrument hint="Watch each cell get classified by its neighbors · then hover to probe · click to add a point">
             <FigureLayout
                 sideWidth={300}
                 main={
+                    <>
                     <Plot
                         label="k-nearest-neighbour decision regions"
                         view={VIEW}
@@ -109,17 +130,24 @@ function KnnFigure(props: {kind?: Kind; noise?: number; k?: number; metric?: num
                         onPointer={onPointer}
                         draw={(p) => {
                             p.clear();
-                            p.image(regions, VIEW);
+                            if (scanning) p.image(painted, VIEW, false);
+                            else p.image(regions, VIEW);
                             p.grid(0.25, {axes: false});
-                            if (neighbours && query) {
-                                for (const i of neighbours.idx) p.line(query.x, query.y, data[3 * i], data[3 * i + 1], {color: rgba(C.white, 0.55), width: 1.2});
-                                drawBall(p, query.x, query.y, neighbours.radius, metric, rgba(C.white, 0.75));
+                            if (neighbours && probe) {
+                                for (const i of neighbours.idx) p.line(probe.x, probe.y, data[3 * i], data[3 * i + 1], {color: rgba(C.white, 0.55), width: 1.2});
+                                drawBall(p, probe.x, probe.y, neighbours.radius, metric, rgba(C.white, 0.75));
                             }
                             drawLabelled(p, data, {r: 4});
                             if (neighbours) for (const i of neighbours.idx) p.circle(data[3 * i], data[3 * i + 1], 7.5, {stroke: C.white, width: 1.5});
-                            if (query) p.circle(query.x, query.y, 5, {fill: C.white, stroke: C.canvas, width: 2});
+                            if (probe) p.circle(probe.x, probe.y, 5, {fill: scanning ? C.yellow : C.white, stroke: C.canvas, width: 2});
                         }}
                     />
+                    <Player
+                        timeline={tl}
+                        speeds={[0.5, 1, 3]}
+                        status={scanning ? `Classifying cell ${cell + 1} of ${SCAN * SCAN}: find its ${k} nearest points, take a majority vote, paint the cell.` : "Every cell classified. Hover anywhere to probe a point yourself."}
+                    />
+                    </>
                 }
                 side={
                     <div className="controls">
