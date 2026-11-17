@@ -26,6 +26,7 @@ pub mod mlp;
 pub mod optim;
 pub mod pca;
 pub mod perceptron;
+pub mod rl;
 pub mod rng;
 pub mod svm;
 pub mod tree;

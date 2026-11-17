@@ -42,7 +42,7 @@ export const PLAYGROUNDS: PlaygroundMeta[] = [
     {slug: "gaussian-processes", title: "Gaussian Processes", tagline: "Regression that knows where it is unsure.", category: "regression", status: "soon"},
     {slug: "gaussian-mixtures", title: "Gaussian Mixtures (EM)", tagline: "Soft clusters with ellipses that stretch to fit.", category: "clustering", status: "live"},
     {slug: "dbscan", title: "DBSCAN", tagline: "Clusters as dense regions, with noise left out.", category: "clustering", status: "soon"},
-    {slug: "q-learning", title: "Q-Learning", tagline: "An agent learns a maze from rewards alone.", category: "reinforcement", status: "soon"},
+    {slug: "q-learning", title: "Q-Learning", tagline: "An agent learns a maze from rewards alone.", category: "reinforcement", status: "live"},
 ];
 
 export const LIVE = PLAYGROUNDS.filter((p) => p.status === "live");
@@ -62,6 +62,7 @@ export const PLAYGROUND_COMPONENTS: Record<string, LazyExoticComponent<Component
     svm: lazy(() => import("./svm/Svm")),
     "decision-trees": lazy(() => import("./trees/Trees")),
     "gaussian-mixtures": lazy(() => import("./gmm/Gmm")),
+    "q-learning": lazy(() => import("./q-learning/QLearning")),
 };
 
 export function categoryOf(slug: string): Category | undefined {
