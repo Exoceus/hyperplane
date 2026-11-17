@@ -5,10 +5,12 @@ import {Instrument, Playground, type Scenario} from "../../components/Playground
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Plot3D} from "../../components/Plot3D";
+import type {Vec3} from "../../lib/scene3d";
 import {ease, useTimeline} from "../../lib/hooks";
 import type {Painter, View} from "../../lib/painter";
-import {C, rgba} from "../../lib/theme";
-import {make_gaussian, pca, power_iteration, randomSeed} from "../../lib/wasm";
+import {C, hexToRgb, rgba} from "../../lib/theme";
+import {make_clusters_nd, make_gaussian, pca, power_iteration, randomSeed} from "../../lib/wasm";
 
 const VIEW: View = {xmin: -1.3, xmax: 1.3, ymin: -1.3, ymax: 1.3};
 const N = 70;
@@ -322,7 +324,156 @@ function RotateFigure() {
 }
 
 // ===========================================================================
-// Lesson
+// PCA in 3D: squash a cloud onto its best plane
+// ===========================================================================
+
+const N3D = 160;
+
+/** A tilted, flattened Gaussian "pancake" in 3D (stride 3). */
+function makeCloud3d(seed: number, thickness: number): Float64Array {
+    const z = make_clusters_nd(N3D, new Float64Array([0, 0, 0]), new Float64Array([1]), 3, seed);
+    const sd = [0.62, 0.3, thickness];
+    // Rotation: yaw then pitch, so the pancake is tilted in every axis.
+    const [a, b] = [0.7, 0.55];
+    const R = [
+        [Math.cos(a), -Math.sin(a) * Math.cos(b), Math.sin(a) * Math.sin(b)],
+        [Math.sin(a), Math.cos(a) * Math.cos(b), -Math.cos(a) * Math.sin(b)],
+        [0, Math.sin(b), Math.cos(b)],
+    ];
+    const out = new Float64Array(N3D * 3);
+    for (let i = 0; i < N3D; i++) {
+        const u = [z[i * 4] * sd[0], z[i * 4 + 1] * sd[1], z[i * 4 + 2] * sd[2]];
+        for (let r = 0; r < 3; r++) out[i * 3 + r] = R[r][0] * u[0] + R[r][1] * u[1] + R[r][2] * u[2];
+    }
+    return out;
+}
+
+const RAMP3 = [C.blue, C.purple, C.pink, C.orange, C.yellow].map(hexToRgb);
+function ramp(t: number): string {
+    const x = Math.max(0, Math.min(1, t)) * (RAMP3.length - 1);
+    const i = Math.min(RAMP3.length - 2, Math.floor(x));
+    const f = x - i;
+    const c = RAMP3[i].map((v, k) => v + (RAMP3[i + 1][k] - v) * f);
+    return `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+}
+
+function Pca3D() {
+    const [seed, setSeed] = useState(6);
+    const [thickness, setThickness] = useState(0.07);
+    const data = useMemo(() => makeCloud3d(seed, thickness), [seed, thickness]);
+    const fit = useMemo(() => {
+        const r = pca(data, 3);
+        const mean = [r[0], r[1], r[2]];
+        const vals = [r[12], r[13], r[14]];
+        const vec = (k: number) => [r[15 + 3 * k], r[16 + 3 * k], r[17 + 3 * k]];
+        const coords = new Float64Array(N3D * 3);
+        for (let i = 0; i < N3D; i++)
+            for (let k = 0; k < 3; k++) {
+                const v = vec(k);
+                coords[i * 3 + k] = (data[i * 3] - mean[0]) * v[0] + (data[i * 3 + 1] - mean[1]) * v[1] + (data[i * 3 + 2] - mean[2]) * v[2];
+            }
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (let i = 0; i < N3D; i++) {
+            lo = Math.min(lo, coords[i * 3]);
+            hi = Math.max(hi, coords[i * 3]);
+        }
+        return {mean, vals, vecs: [vec(0), vec(1), vec(2)], coords, lo, hi};
+    }, [data]);
+    const tl = useTimeline(3, 1, {autoplay: true, runKey: fit, duration: 7, delay: 0.6});
+    const s1 = ease(Math.min(1, tl.t));
+    const s2 = ease(Math.max(0, Math.min(1, tl.t - 1)));
+    const s3 = ease(Math.max(0, tl.t - 2));
+    const color = (i: number) => ramp((fit.coords[i * 3] - fit.lo) / (fit.hi - fit.lo));
+    const kept = (fit.vals[0] + fit.vals[1]) / (fit.vals[0] + fit.vals[1] + fit.vals[2]);
+    const {mean, vecs, vals} = fit;
+    const along = (k: number, s: number): Vec3 => [mean[0] + vecs[k][0] * s, mean[1] + vecs[k][1] * s, mean[2] + vecs[k][2] * s];
+    const r2 = Math.max(...fit.coords.filter((_, i) => i % 3 === 1).map(Math.abs)) * 1.1;
+    const pcView: View = {xmin: -1.25, xmax: 1.25, ymin: -1.25 * 0.62, ymax: 1.25 * 0.62};
+
+    const stage = tl.t < 1 ? "Finding the axes of greatest spread: the eigenvectors of the covariance matrix." : tl.t < 2 ? "The top two axes span the best-fitting plane." : "Projecting every point onto that plane: dropping the third coordinate.";
+
+    return (
+        <Instrument hint="Drag to orbit · the right panel is the result: each point's two new coordinates">
+            <FigureLayout
+                sideWidth={330}
+                main={
+                    <>
+                        <Plot3D
+                            label="A 3D point cloud projected onto its principal plane"
+                            initial={{pitch: 0.8, yaw: -0.25}}
+                            draw={(sc) => {
+                                sc.floor(-0.85, 1, 0.25);
+                                if (s2 > 0) {
+                                    const a = 2.2 * Math.sqrt(vals[0]);
+                                    const b = 2.2 * Math.sqrt(vals[1]);
+                                    const corner = (sa: number, sb: number): Vec3 => [
+                                        mean[0] + vecs[0][0] * sa + vecs[1][0] * sb,
+                                        mean[1] + vecs[0][1] * sa + vecs[1][1] * sb,
+                                        mean[2] + vecs[0][2] * sa + vecs[1][2] * sb,
+                                    ];
+                                    const g = 4;
+                                    for (let i = 0; i < g; i++)
+                                        for (let j = 0; j < g; j++) {
+                                            const a0 = -a + (2 * a * i) / g;
+                                            const a1 = -a + (2 * a * (i + 1)) / g;
+                                            const b0 = -b + (2 * b * j) / g;
+                                            const b1 = -b + (2 * b * (j + 1)) / g;
+                                            sc.quad(corner(a0, b0), corner(a1, b0), corner(a1, b1), corner(a0, b1), "rgb(255,216,102)", {alpha: 0.14 * s2, stroke: `rgba(255,216,102,${0.45 * s2})`, width: 1});
+                                        }
+                                }
+                                for (let i = 0; i < N3D; i++) {
+                                    const p: Vec3 = [data[i * 3], data[i * 3 + 1], data[i * 3 + 2]];
+                                    const off = fit.coords[i * 3 + 2];
+                                    const q: Vec3 = [p[0] - vecs[2][0] * off * s3, p[1] - vecs[2][1] * off * s3, p[2] - vecs[2][2] * off * s3];
+                                    if (s2 > 0.5 && s3 < 1) sc.line(q, [p[0] - vecs[2][0] * off, p[1] - vecs[2][1] * off, p[2] - vecs[2][2] * off], rgba(C.pink, 0.5), 1);
+                                    sc.point(q, color(i), 3.8);
+                                }
+                                const cols = [C.yellow, C.teal, C.pink];
+                                for (let k = 0; k < 3; k++) {
+                                    const len = 2.2 * Math.sqrt(vals[k]) * s1;
+                                    if (len > 1e-3) sc.arrow([mean[0], mean[1], mean[2]], along(k, len), cols[k], k === 2 ? 2.5 : 3.2);
+                                }
+                            }}
+                        />
+                        <Player timeline={tl} speeds={[0.5, 1, 3]} status={stage} />
+                    </>
+                }
+                side={
+                    <div className="controls">
+                        <div className="panel-label">
+                            <span>Output: 2 numbers per point</span>
+                            <span className="panel-label-right">PC1 → · PC2 ↑</span>
+                        </div>
+                        <Plot
+                            label="Points in principal-component coordinates"
+                            view={pcView}
+                            draw={(p) => {
+                                p.clear();
+                                p.grid(0.25, {axes: true});
+                                const scale = 1.1 / Math.max(Math.abs(fit.lo), Math.abs(fit.hi), r2);
+                                for (let i = 0; i < N3D; i++) p.point(fit.coords[i * 3] * scale, fit.coords[i * 3 + 1] * scale, color(i), {r: 3.2, alpha: s3});
+                            }}
+                        />
+                        <Stats>
+                            <Stat label={<M>{"\\lambda_1"}</M>} value={vals[0].toFixed(3)} color={C.yellow} />
+                            <Stat label={<M>{"\\lambda_2"}</M>} value={vals[1].toFixed(3)} color={C.teal} />
+                            <Stat label={<M>{"\\lambda_3"}</M>} value={vals[2].toFixed(4)} color={C.pink} />
+                            <Stat label="2 PCs keep" value={`${(kept * 100).toFixed(1)}%`} color={C.green} />
+                        </Stats>
+                        <Slider label="How thick the pancake is" value={thickness} min={0.01} max={0.4} onChange={setThickness} color={C.pink} />
+                        <div className="control-row">
+                            <Button onClick={() => setSeed(randomSeed())}>New sample</Button>
+                        </div>
+                    </div>
+                }
+            />
+        </Instrument>
+    );
+}
+
+// ===========================================================================
+// Playground
 // ===========================================================================
 
 const SCENARIOS: Scenario[] = [
@@ -343,6 +494,12 @@ const SCENARIOS: Scenario[] = [
         title: "Almost a line",
         prompt: <>A very elongated cloud: one direction holds nearly all the variance, so one number per point loses almost nothing.</>,
         render: () => <DirectionFigure stretch={0.08} />,
+    },
+    {
+        id: "3d",
+        title: "3D → 2D",
+        prompt: <>A tilted, flat cloud of points in 3D. PCA finds its three axes, keeps the top two as a plane, and squashes every point onto it. The panel on the right is the result. Make the pancake thicker and see how much is lost.</>,
+        render: () => <Pca3D />,
     },
     {
         id: "rotate",
