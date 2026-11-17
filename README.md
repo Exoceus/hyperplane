@@ -15,6 +15,7 @@ Everything runs in the browser. The algorithms live in a Rust crate compiled to 
 | Classification | k-nearest neighbors  | Live decision regions, neighborhood shapes per metric, train vs. test accuracy over k    |
 | Classification | Neural networks      | A single neuron, a trainable network with per-neuron maps, and layers that bend the plane |
 | Classification | Support vector machines | Widest street, soft margin and C, outliers, RBF γ overfitting, the kernel trick in 3D  |
+| Classification | Decision trees & forests | Grow a tree split by split, overfitting with depth, axis-aligned staircases, forest vs. tree |
 | Unsupervised   | k-means clustering   | Lloyd's algorithm phase by phase with Voronoi regions, draggable initial centroids, elbow |
 | Unsupervised   | PCA                  | Rotate a projection line (kept vs. lost variance); rotate into the eigenbasis and project |
 

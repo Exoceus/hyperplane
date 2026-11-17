@@ -27,3 +27,4 @@ pub mod pca;
 pub mod perceptron;
 pub mod rng;
 pub mod svm;
+pub mod tree;
