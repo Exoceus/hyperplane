@@ -8,12 +8,12 @@ import {Plot, type PlotPointer} from "../../components/Plot";
 import {ease, useTimeline} from "../../lib/hooks";
 import type {Painter, View} from "../../lib/painter";
 import {C, rgba} from "../../lib/theme";
-import {useTween} from "../../lib/tween";
-import {make_gaussian, pca, randomSeed} from "../../lib/wasm";
+import {make_gaussian, pca, power_iteration, randomSeed} from "../../lib/wasm";
 
 const VIEW: View = {xmin: -1.3, xmax: 1.3, ymin: -1.3, ymax: 1.3};
 const N = 70;
 const SAMPLES = 180;
+const POWER_STEPS = 12;
 
 interface Pca2 {
     mean: [number, number];
@@ -61,9 +61,32 @@ function DirectionFigure(props: {stretch?: number}) {
     const [stretch, setStretch] = useState(props.stretch ?? 0.3);
     const data = useMemo(() => make_gaussian(N, 0.05, -0.05, 0.5, 0.5 * stretch, 0.6, seed), [seed, stretch]);
     const stats = useMemo(() => pca2(data), [data]);
-    const [angle, animateAngle, setAngle] = useTween([2.2], 0.8);
-    const theta = angle[0];
+    // Manual angle (dragging) vs. the angle found by power iteration.
+    const [manualAngle, setManualAngle] = useState(2.2);
+    const [manual, setManual] = useState(false);
+    const [runId, setRunId] = useState(0);
     const [dragging, setDragging] = useState(false);
+
+    // Power iteration from the current guess: v ← Σv / ‖Σv‖, replayed whenever the data changes.
+    const path = useMemo(() => {
+        const cov = new Float64Array([stats.cxx, stats.cxy, stats.cxy, stats.cyy]);
+        const raw = power_iteration(cov, 2, new Float64Array([Math.cos(manualAngle), Math.sin(manualAngle)]), POWER_STEPS);
+        const angles: number[] = [];
+        for (let k = 0; k <= POWER_STEPS; k++) {
+            let a = Math.atan2(raw[2 * k + 1], raw[2 * k]);
+            const prev = k === 0 ? manualAngle : angles[k - 1];
+            while (a - prev > Math.PI / 2) a -= Math.PI;
+            while (a - prev < -Math.PI / 2) a += Math.PI;
+            angles.push(a);
+        }
+        return {angles, runId};
+        // manualAngle is read only as the starting guess when a run begins.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [stats, runId]);
+    const tl = useTimeline(POWER_STEPS, 1, {autoplay: true, runKey: path, duration: 4, delay: 0.6});
+    const k = Math.min(POWER_STEPS - 1, Math.floor(tl.t));
+    const theta = manual ? manualAngle : path.angles[k] + (path.angles[k + 1] - path.angles[k]) * ease(tl.t - k);
+    const iteration = Math.min(POWER_STEPS, Math.round(tl.t));
 
     const along = varianceAlong(stats, theta);
     const total = stats.cxx + stats.cyy;
@@ -77,13 +100,14 @@ function DirectionFigure(props: {stretch?: number}) {
     }, [stats]);
     const residualCurve = useMemo(() => curve.map((v) => total - v), [curve, total]);
     const deg = ((((theta * 180) / Math.PI) % 180) + 180) % 180;
-
-    const snap = () => {
-        // Rotate the short way: the line at θ and θ + π is the same line.
-        let target = pcAngle;
-        while (target - theta > Math.PI / 2) target -= Math.PI;
-        while (target - theta < -Math.PI / 2) target += Math.PI;
-        animateAngle([target]);
+    const setAngle = (a: number) => {
+        setManual(true);
+        setManualAngle(a);
+    };
+    const runPower = () => {
+        setManualAngle(theta);
+        setManual(false);
+        setRunId(runId + 1);
     };
 
     const onPointer = (e: PlotPointer) => {
@@ -93,7 +117,7 @@ function DirectionFigure(props: {stretch?: number}) {
             let a = Math.atan2(e.y - stats.mean[1], e.x - stats.mean[0]);
             while (a - theta > Math.PI / 2) a -= Math.PI;
             while (a - theta < -Math.PI / 2) a += Math.PI;
-            setAngle([a]);
+            setAngle(a);
         }
     };
 
@@ -105,6 +129,7 @@ function DirectionFigure(props: {stretch?: number}) {
         <Instrument hint="Drag anywhere to rotate the line">
             <FigureLayout
                 main={
+                    <>
                     <Plot
                         label="Projecting 2D data onto a rotatable line"
                         view={VIEW}
@@ -130,6 +155,21 @@ function DirectionFigure(props: {stretch?: number}) {
                             p.text("u", mx + ux * 0.45, my + uy * 0.45, {color: C.yellow, size: 16, font: "serif", weight: 600, dx: 8, dy: -6});
                         }}
                     />
+                    <Player
+                        timeline={tl}
+                        speeds={[0.5, 1, 3]}
+                        status={
+                            manual ? (
+                                <>Your guess: θ = {deg.toFixed(0)}°. Press <b>Run power iteration</b> to let the algorithm improve it.</>
+                            ) : (
+                                <>
+                                    Power iteration step {iteration}: <M>{"\\vu \\leftarrow \\Sigma\\vu / \\lVert\\Sigma\\vu\\rVert"}</M>. Each multiply by the covariance
+                                    tilts the line toward the direction of most spread.
+                                </>
+                            )
+                        }
+                    />
+                    </>
                 }
                 side={
                     <div className="controls">
@@ -161,7 +201,7 @@ function DirectionFigure(props: {stretch?: number}) {
                             yMin={0}
                             marker={deg}
                             xLabel="θ (degrees)"
-                            onPick={(x) => setAngle([(Math.max(0, Math.min(180, x)) * Math.PI) / 180])}
+                            onPick={(x) => setAngle((Math.max(0, Math.min(180, x)) * Math.PI) / 180)}
                         />
                         <Stats>
                             <Stat label="θ" value={`${deg.toFixed(0)}°`} color={C.yellow} />
@@ -169,8 +209,8 @@ function DirectionFigure(props: {stretch?: number}) {
                         </Stats>
                         <Slider label="How elongated the cloud is" value={stretch} min={0.08} max={1} onChange={setStretch} color={C.teal} format={(v) => `${v.toFixed(2)}`} />
                         <div className="control-row">
-                            <Button variant="primary" onClick={snap}>
-                                Find the best line
+                            <Button variant="primary" onClick={runPower}>
+                                Run power iteration
                             </Button>
                             <Button onClick={() => setSeed(randomSeed())}>New sample</Button>
                         </div>
