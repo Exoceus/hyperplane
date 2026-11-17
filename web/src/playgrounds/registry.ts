@@ -39,7 +39,7 @@ export const PLAYGROUNDS: PlaygroundMeta[] = [
     {slug: "decision-trees", title: "Decision Trees & Forests", tagline: "Carve the plane into boxes, one question at a time.", category: "classification", status: "live"},
     {slug: "naive-bayes", title: "Naive Bayes", tagline: "Classify with one Gaussian per class and Bayes' rule.", category: "classification", status: "soon"},
     {slug: "overfitting", title: "Overfitting & Regularization", tagline: "Crank up the polynomial degree, then rein it in.", category: "regression", status: "live"},
-    {slug: "gaussian-processes", title: "Gaussian Processes", tagline: "Regression that knows where it is unsure.", category: "regression", status: "soon"},
+    {slug: "gaussian-processes", title: "Gaussian Processes", tagline: "Regression that knows where it is unsure.", category: "regression", status: "live"},
     {slug: "gaussian-mixtures", title: "Gaussian Mixtures (EM)", tagline: "Soft clusters with ellipses that stretch to fit.", category: "clustering", status: "live"},
     {slug: "dbscan", title: "DBSCAN", tagline: "Clusters as dense regions, with noise left out.", category: "clustering", status: "soon"},
     {slug: "q-learning", title: "Q-Learning", tagline: "An agent learns a maze from rewards alone.", category: "reinforcement", status: "live"},
@@ -64,6 +64,7 @@ export const PLAYGROUND_COMPONENTS: Record<string, LazyExoticComponent<Component
     "gaussian-mixtures": lazy(() => import("./gmm/Gmm")),
     "q-learning": lazy(() => import("./q-learning/QLearning")),
     overfitting: lazy(() => import("./overfitting/Overfitting")),
+    "gaussian-processes": lazy(() => import("./gp/Gp")),
 };
 
 export function categoryOf(slug: string): Category | undefined {
