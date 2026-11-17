@@ -118,6 +118,46 @@ impl SvmModel {
 #[wasm_bindgen]
 #[allow(clippy::too_many_arguments)]
 pub fn svm_train(data: &[f64], dim: usize, c: f64, kernel: u8, gamma: f64, degree: u32, coef0: f64, max_iter: usize) -> SvmModel {
+    solve(data, dim, c, kernel, gamma, degree, coef0, max_iter, None)
+}
+
+/// ρ from the KKT conditions: average over free support vectors, else the
+/// midpoint of the feasible interval.
+fn compute_rho(alpha: &[f64], grad: &[f64], y: &[f64], c: f64) -> f64 {
+    let (mut ub, mut lb) = (f64::INFINITY, f64::NEG_INFINITY);
+    let (mut free, mut sum_free) = (0usize, 0.0);
+    for t in 0..alpha.len() {
+        let yg = y[t] * grad[t];
+        if alpha[t] >= c - 1e-12 {
+            if y[t] < 0.0 {
+                ub = ub.min(yg);
+            } else {
+                lb = lb.max(yg);
+            }
+        } else if alpha[t] <= 1e-12 {
+            if y[t] > 0.0 {
+                ub = ub.min(yg);
+            } else {
+                lb = lb.max(yg);
+            }
+        } else {
+            free += 1;
+            sum_free += yg;
+        }
+    }
+    if free > 0 {
+        sum_free / free as f64
+    } else if ub.is_finite() && lb.is_finite() {
+        (ub + lb) / 2.0
+    } else {
+        0.0
+    }
+}
+
+/// The SMO solver. When `frames` is given, records `[i, j, ρ, α₀ … α_{n−1}]`
+/// before the first step and after every step.
+#[allow(clippy::too_many_arguments)]
+fn solve(data: &[f64], dim: usize, c: f64, kernel: u8, gamma: f64, degree: u32, coef0: f64, max_iter: usize, mut frames: Option<&mut Vec<f64>>) -> SvmModel {
     let dim = dim.max(1);
     let stride = dim + 1;
     let n = data.len() / stride;
@@ -145,6 +185,10 @@ pub fn svm_train(data: &[f64], dim: usize, c: f64, kernel: u8, gamma: f64, degre
     let mut grad = vec![-1.0; n];
     let mut iterations = 0;
     let has_both = y.iter().any(|&v| v > 0.0) && y.iter().any(|&v| v < 0.0);
+    if let Some(f) = frames.as_deref_mut() {
+        f.extend_from_slice(&[-1.0, -1.0, compute_rho(&alpha, &grad, &y, c)]);
+        f.extend_from_slice(&alpha);
+    }
 
     while has_both && iterations < max_iter {
         // Working-set selection (Fan, Chen & Lin 2005).
@@ -240,39 +284,71 @@ pub fn svm_train(data: &[f64], dim: usize, c: f64, kernel: u8, gamma: f64, degre
         for t in 0..n {
             grad[t] += q(t, i) * di + q(t, j) * dj;
         }
-    }
-
-    // Offset ρ: average over free support vectors, else midpoint of the bounds.
-    let (mut ub, mut lb) = (f64::INFINITY, f64::NEG_INFINITY);
-    let (mut free, mut sum_free) = (0usize, 0.0);
-    for t in 0..n {
-        let yg = y[t] * grad[t];
-        if alpha[t] >= c - 1e-12 {
-            if y[t] < 0.0 {
-                ub = ub.min(yg);
-            } else {
-                lb = lb.max(yg);
-            }
-        } else if alpha[t] <= 1e-12 {
-            if y[t] > 0.0 {
-                ub = ub.min(yg);
-            } else {
-                lb = lb.max(yg);
-            }
-        } else {
-            free += 1;
-            sum_free += yg;
+        if let Some(f) = frames.as_deref_mut() {
+            f.extend_from_slice(&[i as f64, j as f64, compute_rho(&alpha, &grad, &y, c)]);
+            f.extend_from_slice(&alpha);
         }
     }
-    let rho = if free > 0 {
-        sum_free / free as f64
-    } else if ub.is_finite() && lb.is_finite() {
-        (ub + lb) / 2.0
-    } else {
-        0.0
-    };
 
+    let rho = compute_rho(&alpha, &grad, &y, c);
     SvmModel { dim, points, labels: y, alpha, rho, c, kernel, iterations }
+}
+
+/// SMO, recorded: `frames` holds up to `max_frames` snapshots with stride
+/// `n + 3` (`[i, j, ρ, α…]`, where `i, j` is the pair just optimized; −1 for
+/// the starting frame). Long runs are evenly subsampled, keeping the first
+/// and last frame.
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn svm_trace(data: &[f64], dim: usize, c: f64, kernel: u8, gamma: f64, degree: u32, coef0: f64, max_iter: usize, max_frames: usize) -> Vec<f64> {
+    let n = data.len() / (dim.max(1) + 1);
+    let stride = n + 3;
+    let mut frames = Vec::new();
+    solve(data, dim, c, kernel, gamma, degree, coef0, max_iter, Some(&mut frames));
+    let count = frames.len() / stride;
+    let max_frames = max_frames.max(2);
+    if count <= max_frames {
+        return frames;
+    }
+    let mut out = Vec::with_capacity(max_frames * stride);
+    for f in 0..max_frames {
+        let src = ((f as f64 / (max_frames - 1) as f64) * (count - 1) as f64).round() as usize;
+        out.extend_from_slice(&frames[src * stride..(src + 1) * stride]);
+    }
+    out
+}
+
+/// Decision values over a grid for arbitrary dual coefficients (2D data).
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn svm_grid_from(data: &[f64], alphas: &[f64], rho: f64, kernel: u8, gamma: f64, degree: u32, coef0: f64, xmin: f64, xmax: f64, ymin: f64, ymax: f64, nx: usize, ny: usize) -> Vec<f64> {
+    let kernel = Kernel { kind: kernel, gamma, degree: degree.max(1) as i32, coef0 };
+    let sv: Vec<(f64, [f64; 2])> = data
+        .chunks_exact(3)
+        .zip(alphas)
+        .filter(|(_, a)| **a > 1e-12)
+        .map(|(p, a)| (a * if p[2] > 0.5 { 1.0 } else { -1.0 }, [p[0], p[1]]))
+        .collect();
+    let mut buf = [0.0; 2];
+    Grid::new(xmin, xmax, ymin, ymax, nx, ny).map(|x, y| {
+        buf[0] = x;
+        buf[1] = y;
+        sv.iter().map(|(ay, p)| ay * kernel.eval(p, &buf)).sum::<f64>() - rho
+    })
+}
+
+/// Decision values at arbitrary query points (stride 2) for given dual coefficients.
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn svm_decisions(data: &[f64], alphas: &[f64], rho: f64, kernel: u8, gamma: f64, degree: u32, coef0: f64, queries: &[f64]) -> Vec<f64> {
+    let kernel = Kernel { kind: kernel, gamma, degree: degree.max(1) as i32, coef0 };
+    let sv: Vec<(f64, [f64; 2])> = data
+        .chunks_exact(3)
+        .zip(alphas)
+        .filter(|(_, a)| **a > 1e-12)
+        .map(|(p, a)| (a * if p[2] > 0.5 { 1.0 } else { -1.0 }, [p[0], p[1]]))
+        .collect();
+    queries.chunks_exact(2).map(|q| sv.iter().map(|(ay, p)| ay * kernel.eval(p, q)).sum::<f64>() - rho).collect()
 }
 
 #[cfg(test)]
@@ -330,6 +406,26 @@ mod tests {
         let xor = make_shape("xor", 200, 0.05, 2);
         let m = svm_train(&xor, 2, 10.0, 2, 1.0, 2, 0.0, 100_000);
         assert!(accuracy(&m, &xor, 2) > 0.95);
+    }
+
+    #[test]
+    fn trace_ends_at_the_trained_solution() {
+        let data = make_shape("circles", 80, 0.1, 6);
+        let m = svm_train(&data, 2, 10.0, 1, 2.0, 3, 1.0, 100_000);
+        let frames = svm_trace(&data, 2, 10.0, 1, 2.0, 3, 1.0, 100_000, 40);
+        let stride = 80 + 3;
+        assert!(frames.len() / stride <= 40);
+        assert!(frames[2..stride].iter().skip(1).all(|a| *a == 0.0), "first frame starts at α = 0");
+        let last = &frames[frames.len() - stride..];
+        assert!((last[2] - m.rho()).abs() < 1e-9);
+        for (a, b) in last[3..].iter().zip(m.alphas()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+        let g1 = svm_grid_from(&data, &last[3..], last[2], 1, 2.0, 3, 1.0, -1.0, 1.0, -1.0, 1.0, 6, 6);
+        let g2 = m.decision_grid(-1.0, 1.0, -1.0, 1.0, 6, 6);
+        for (a, b) in g1.iter().zip(&g2) {
+            assert!((a - b).abs() < 1e-9);
+        }
     }
 
     #[test]

@@ -8,10 +8,11 @@ import {appendRow, drawLabelled, hitPoint, removeRow, setRow} from "../../lib/da
 import {ease, useTimeline} from "../../lib/hooks";
 import {heatImage, tint, type Painter, type View} from "../../lib/painter";
 import {C, CLASS_RGB, rgba} from "../../lib/theme";
-import {contour_segments, make_shape, make_two_blobs, randomSeed, svm_train} from "../../lib/wasm";
+import {contour_segments, make_shape, make_two_blobs, randomSeed, svm_decisions, svm_grid_from, svm_trace, svm_train} from "../../lib/wasm";
 
 const VIEW: View = {xmin: -1.4, xmax: 1.4, ymin: -1.4, ymax: 1.4};
-const G = 120;
+const G = 110;
+const FRAMES = 100;
 
 type DataKind = "separable" | "overlap" | "outlier" | "circles" | "xor" | "moons";
 
@@ -57,19 +58,38 @@ function SvmInstrument(props: {kind?: DataKind; kernel?: number; c?: number; gam
     const [brush, setBrush] = useState(1);
     const [drag, setDrag] = useState<number | null>(null);
 
-    const fit = useMemo<Fit>(() => {
-        const model = svm_train(data, 2, c, kernel, gamma, degree, 1, 50_000);
-        const grid = model.decision_grid(VIEW.xmin, VIEW.xmax, VIEW.ymin, VIEW.ymax, G, G);
-        const regions = heatImage(grid, G, G, (f) => tint(CLASS_RGB[f >= 0 ? 1 : 0], 0.1 + 0.22 * Math.min(1, Math.abs(f))));
-        const contours = contour_segments(grid, G, G, VIEW.xmin, VIEW.xmax, VIEW.ymin, VIEW.ymax, new Float64Array([-1, 0, 1]));
-        let correct = 0;
-        for (let i = 0; i < data.length; i += 3) if (model.decision(data.subarray(i, i + 2)) >= 0 === data[i + 2] > 0.5) correct++;
-        const out = {alphas: model.alphas, w: model.weights(), regions, contours, acc: correct / (data.length / 3), iterations: model.iterations};
-        model.free();
-        return out;
-    }, [data, c, kernel, gamma, degree]);
-
+    // The whole SMO run, recorded; the animation replays it whenever anything changes.
+    const trace = useMemo(() => svm_trace(data, 2, c, kernel, gamma, degree, 1, 50_000, FRAMES), [data, c, kernel, gamma, degree]);
     const n = data.length / 3;
+    const stride = n + 3;
+    const frameCount = trace.length / stride;
+    const tl = useTimeline(frameCount - 1, 1, {autoplay: true, runKey: trace, duration: 3});
+    const f = drag !== null ? frameCount - 1 : Math.min(frameCount - 1, Math.round(tl.t));
+    const pairI = trace[f * stride];
+    const pairJ = trace[f * stride + 1];
+
+    const fit = useMemo<Fit>(() => {
+        const alphas = trace.slice(f * stride + 3, (f + 1) * stride);
+        const rho = trace[f * stride + 2];
+        const grid = svm_grid_from(data, alphas, rho, kernel, gamma, degree, 1, VIEW.xmin, VIEW.xmax, VIEW.ymin, VIEW.ymax, G, G);
+        const regions = heatImage(grid, G, G, (v) => tint(CLASS_RGB[v >= 0 ? 1 : 0], 0.1 + 0.22 * Math.min(1, Math.abs(v))));
+        const contours = contour_segments(grid, G, G, VIEW.xmin, VIEW.xmax, VIEW.ymin, VIEW.ymax, new Float64Array([-1, 0, 1]));
+        // Weight vector (meaningful for the linear kernel) and training accuracy of this snapshot.
+        const w = new Float64Array(2);
+        const queries = new Float64Array(n * 2);
+        for (let i = 0; i < n; i++) {
+            const yi = data[3 * i + 2] > 0.5 ? 1 : -1;
+            w[0] += alphas[i] * yi * data[3 * i];
+            w[1] += alphas[i] * yi * data[3 * i + 1];
+            queries[2 * i] = data[3 * i];
+            queries[2 * i + 1] = data[3 * i + 1];
+        }
+        const dec = svm_decisions(data, alphas, rho, kernel, gamma, degree, 1, queries);
+        let correct = 0;
+        for (let i = 0; i < n; i++) if (dec[i] >= 0 === data[3 * i + 2] > 0.5) correct++;
+        return {alphas, w, regions, contours, acc: correct / n, iterations: f};
+    }, [trace, f, stride, data, kernel, gamma, degree, n]);
+
     let svCount = 0;
     let bounded = 0;
     for (const a of fit.alphas) {
@@ -94,6 +114,7 @@ function SvmInstrument(props: {kind?: DataKind; kernel?: number; c?: number; gam
         <Instrument hint="Drag points · click empty space to add · shift-click a point to delete it">
             <FigureLayout
                 main={
+                    <>
                     <Plot
                         label="Support vector machine decision regions and margin"
                         view={VIEW}
@@ -105,9 +126,18 @@ function SvmInstrument(props: {kind?: DataKind; kernel?: number; c?: number; gam
                             p.image(fit.regions, VIEW);
                             p.grid(0.25, {axes: false});
                             p.contours(fit.contours, (lvl) => (lvl === 1 ? {color: C.white, width: 2.5} : {color: rgba(C.white, 0.7), width: 1.4, dash: [6, 5]}));
+                            if (pairI >= 0 && f < frameCount - 1)
+                                p.line(data[3 * pairI], data[3 * pairI + 1], data[3 * pairJ], data[3 * pairJ + 1], {color: C.yellow, width: 2, dash: [4, 4]});
                             drawLabelled(p, data, {
                                 r: 4.5,
-                                ring: (k) => (fit.alphas[k] > c * (1 - 1e-6) ? C.red : fit.alphas[k] > 1e-6 ? C.white : undefined),
+                                ring: (k) =>
+                                    f < frameCount - 1 && (k === pairI || k === pairJ)
+                                        ? C.yellow
+                                        : fit.alphas[k] > c * (1 - 1e-6)
+                                          ? C.red
+                                          : fit.alphas[k] > 1e-6
+                                            ? C.white
+                                            : undefined,
                             });
                             if (kernel === 0 && wNorm > 1e-9) {
                                 // Margin width annotation along w.
@@ -115,6 +145,23 @@ function SvmInstrument(props: {kind?: DataKind; kernel?: number; c?: number; gam
                             }
                         }}
                     />
+                    <Player
+                        timeline={tl}
+                        speeds={[0.5, 1, 3]}
+                        status={
+                            f >= frameCount - 1 ? (
+                                <span className="c-green">Converged: every point satisfies the margin conditions (KKT) up to tolerance.</span>
+                            ) : f === 0 ? (
+                                <>All α = 0: no support vectors yet.</>
+                            ) : (
+                                <>
+                                    SMO snapshot {f} of {frameCount - 1}: re-optimizing the <span className="c-yellow">yellow pair</span> of multipliers while keeping
+                                    every other α fixed.
+                                </>
+                            )
+                        }
+                    />
+                    </>
                 }
                 side={
                     <div className="controls">
@@ -128,7 +175,7 @@ function SvmInstrument(props: {kind?: DataKind; kernel?: number; c?: number; gam
                             <Stat label="support vectors" value={`${svCount} / ${n}`} />
                             <Stat label="inside the street" value={bounded} color={bounded ? C.red : C.green} />
                             <Stat label="train accuracy" value={`${Math.round(fit.acc * 100)}%`} color={C.green} />
-                            <Stat label="SMO steps" value={fit.iterations} />
+                            <Stat label="snapshot" value={`${f} / ${frameCount - 1}`} />
                         </Stats>
                         <p className="note">
                             <span style={{color: C.white}}>○</span> support vectors define the boundary. <span className="c-red">○</span> are at the C limit:

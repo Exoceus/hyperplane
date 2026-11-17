@@ -66,6 +66,11 @@ export interface TimelineOptions {
     runKey?: unknown;
     /** Seconds to hold on the first frame before an automatic replay starts. */
     delay?: number;
+    /**
+     * Play the whole run in about this many seconds, whatever its length; the
+     * speed setting then acts as a multiplier (1× = this duration).
+     */
+    duration?: number;
 }
 
 export function useTimeline(length: number, initialSpeed = 2, opts: TimelineOptions = {}): Timeline {
@@ -87,10 +92,12 @@ export function useTimeline(length: number, initialSpeed = 2, opts: TimelineOpti
         setTState(v);
     }, []);
 
+    const duration = opts.duration;
     useAnimationFrame((dt) => {
         const cur = Math.min(tRef.current, lenRef.current);
         const target = Math.min(targetRef.current, lenRef.current);
-        const rate = mode === "step" ? Math.max(speed, 3) : speed;
+        const base = duration ? Math.max(lenRef.current / duration, 1) : 1;
+        const rate = mode === "step" ? Math.max(speed * base, 3) : speed * base;
         const next = cur < target ? Math.min(target, cur + dt * rate) : Math.max(target, cur - dt * rate);
         setT(next);
         if (next === target) setMode("idle");
