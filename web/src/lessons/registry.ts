@@ -78,7 +78,7 @@ export const LESSONS: LessonMeta[] = [
         tagline: "Two alternating steps that find clusters without being told what to look for.",
         track: "unsupervised",
         minutes: 8,
-        status: "soon",
+        status: "live",
     },
     {
         slug: "pca",
@@ -105,6 +105,7 @@ export const LESSON_COMPONENTS: Record<string, LazyExoticComponent<ComponentType
     "logistic-regression": lazy(() => import("./logistic-regression/LogisticRegression")),
     "k-nearest-neighbors": lazy(() => import("./knn/Knn")),
     "neural-networks": lazy(() => import("./neural-networks/NeuralNetworks")),
+    "k-means": lazy(() => import("./kmeans/KMeans")),
 };
 
 export function lessonNumber(slug: string): number {
