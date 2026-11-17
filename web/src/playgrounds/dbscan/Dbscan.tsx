@@ -71,7 +71,7 @@ function DbscanInstrument(props: {kind?: Kind; eps?: number; minPts?: number}) {
     }, [data, eps, minPts]);
     const kd = useMemo(() => k_distance(data, 3, Math.max(1, minPts - 1)), [data, minPts]);
     const events = run.order.length / 3;
-    const tl = useTimeline(events, 60);
+    const tl = useTimeline(events, 60, {autoplay: true, runKey: run});
     const shown = Math.floor(tl.t + 1e-9);
     const done = tl.atEnd;
 
@@ -96,7 +96,7 @@ function DbscanInstrument(props: {kind?: Kind; eps?: number; minPts?: number}) {
     };
 
     return (
-        <Instrument hint="Press play to watch clusters spread from core point to core point">
+        <Instrument hint="Clusters spread from core point to core point · change ε or minPts to rerun">
             <FigureLayout
                 sideWidth={300}
                 main={
@@ -187,7 +187,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "moons",
         title: "Moons, done right",
-        prompt: <>Press play. Clusters spread from core point to core point, so they can follow any shape, including the two moons that k-means slices in half.</>,
+        prompt: <>Clusters spread from core point to core point, so they can follow any shape, including the two moons that k-means slices in half.</>,
         render: () => <DbscanInstrument />,
     },
     {

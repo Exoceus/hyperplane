@@ -63,7 +63,7 @@ function LloydFigure(props: {kind?: Kind; blobs?: number; k?: number; method?: n
     }, [data, init]);
     const T = run.iterations;
     const L = 2 * T;
-    const tl = useTimeline(L, 1.4);
+    const tl = useTimeline(L, 1.4, {autoplay: true, runKey: run, delay: 0.6});
 
     // Decode the current phase.
     const u = Math.min(L, Math.max(0, Math.ceil(tl.t - 1e-9)));
@@ -96,7 +96,7 @@ function LloydFigure(props: {kind?: Kind; blobs?: number; k?: number; method?: n
     const statusText =
         phase === "init" ? (
             <>
-                {k} centroids placed. Drag them to choose your own starting positions, then press play.
+                {k} centroids placed. Drag one to choose your own starting positions.
             </>
         ) : phase === "assign" ? (
             <>
@@ -141,7 +141,7 @@ function LloydFigure(props: {kind?: Kind; blobs?: number; k?: number; method?: n
     };
 
     return (
-        <Instrument hint="Drag the ✛ centroids before pressing play">
+        <Instrument hint="Drag any ✛ centroid to rerun from a new starting point">
             <FigureLayout
                 main={
                     <>

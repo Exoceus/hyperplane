@@ -171,7 +171,7 @@ function PlaneFigure(props: {sep?: number; l2?: number}) {
 
     const traj = useMemo(() => logreg_train(data, new Float64Array([0, 0, 0]), 2, l2, STEPS, RECORD), [data, l2]);
     const K = traj.length / 5 - 1;
-    const tl = useTimeline(K, 60);
+    const tl = useTimeline(K, 60, {autoplay: true, runKey: traj});
     const k = Math.min(K, Math.floor(tl.t));
     const k1 = Math.min(K, k + 1);
     const s = tl.t - k;
@@ -289,7 +289,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "overlap",
         title: "Overlapping classes",
-        prompt: <>Press play. The boundary settles where the classes meet, and the dashed probability bands show how confident the model is on either side.</>,
+        prompt: <>The boundary settles where the classes meet, and the dashed probability bands show how confident the model is on either side.</>,
         render: () => <PlaneFigure />,
     },
     {

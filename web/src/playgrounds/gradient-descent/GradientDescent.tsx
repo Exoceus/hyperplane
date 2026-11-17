@@ -36,7 +36,7 @@ function OneDFigure(props: {fn?: number; lr?: number}) {
     const curve = useMemo(() => func1d_curve(fn.id, fn.view.xmin, fn.view.xmax, 400), [fn]);
     const traj = useMemo(() => gd1d(fn.id, x0, lr, 60), [fn, x0, lr]);
     const K = traj.length / 2 - 1;
-    const tl = useTimeline(K, 3);
+    const tl = useTimeline(K, 3, {autoplay: true, runKey: traj});
     const k = Math.min(K, Math.floor(tl.t));
     const s = tl.t - k;
     const k1 = Math.min(K, k + 1);
@@ -208,7 +208,7 @@ function RaceFigure({surface = 0}: {surface?: number}) {
     }, [surf]);
 
     const runs = useMemo(() => OPTIMIZERS.map((o, i) => optimize(surf.id, o.id, start[0], start[1], lrs[i], STEPS)), [surf, start, lrs]);
-    const tl = useTimeline(STEPS, 40);
+    const tl = useTimeline(STEPS, 40, {autoplay: true, runKey: runs});
 
     const offset = useMemo(() => {
         let lo = field.lo;
@@ -236,8 +236,6 @@ function RaceFigure({surface = 0}: {surface?: number}) {
     const onPointer = (e: PlotPointer) => {
         if (e.type === "down") {
             setStart([e.x, e.y]);
-            tl.reset();
-            tl.play();
         }
         if (e.type === "move") setHover({x: e.x, y: e.y});
         if (e.type === "leave") setHover(null);

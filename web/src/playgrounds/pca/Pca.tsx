@@ -194,7 +194,7 @@ function RotateFigure() {
     const [seed, setSeed] = useState(15);
     const data = useMemo(() => make_gaussian(N, 0.2, 0.15, 0.48, 0.15, 2.4, seed), [seed]);
     const base = useMemo(() => pca2(data), [data]);
-    const tl = useTimeline(2, 0.5);
+    const tl = useTimeline(2, 0.5, {autoplay: true, runKey: data});
     const t1 = ease(Math.min(1, tl.t));
     const t2 = ease(Math.max(0, tl.t - 1));
 
@@ -227,7 +227,7 @@ function RotateFigure() {
                   : `Projected onto PC1: one number per point, keeping ${(kept * 100).toFixed(0)}% of the variance.`;
 
     return (
-        <Instrument hint="Press play">
+        <Instrument hint="Center, rotate, then project; it replays whenever you resample">
             <FigureLayout
                 main={
                     <>
@@ -307,7 +307,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "rotate",
         title: "Rotate, then project",
-        prompt: <>Press play. PCA centers the data and rotates it onto its principal axes. Watch the off-diagonal covariance go to zero, then drop the second axis.</>,
+        prompt: <>PCA centers the data and rotates it onto its principal axes. Watch the off-diagonal covariance go to zero, then drop the second axis.</>,
         render: () => <RotateFigure />,
     },
 ];

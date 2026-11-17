@@ -177,7 +177,7 @@ function LandscapeFigure(props: {lr?: number; center?: boolean}) {
 
     const traj = useMemo(() => linreg_gd(data, start.m, start.b, lr, STEPS), [data, start, lr]);
     const K = traj.length / 3 - 1;
-    const tl = useTimeline(K, 20);
+    const tl = useTimeline(K, 20, {autoplay: true, runKey: traj});
     const k = Math.min(K, Math.floor(tl.t));
     const f = tl.t - k;
     const k1 = Math.min(K, k + 1);
@@ -311,7 +311,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "too-big",
         title: "Step too big",
-        prompt: <>The learning rate is just past the stability limit. Press play: each step overshoots the valley a little more, and the loss explodes.</>,
+        prompt: <>The learning rate is just past the stability limit: each step overshoots the valley a little more, and the loss explodes.</>,
         render: () => <LandscapeFigure lr={0.34} />,
     },
     {

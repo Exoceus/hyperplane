@@ -51,7 +51,7 @@ function BanditInstrument(props: {means?: number[]; focus?: number; epsilon?: nu
     const [epsilon, setEpsilon] = useState(props.epsilon ?? 0.1);
     const [ucbC, setUcbC] = useState(1);
     const [speed, setSpeed] = useState(props.speed ?? 20);
-    const [running, setRunning] = useState(false);
+    const [running, setRunning] = useState(true);
     const [reveal, setReveal] = useState(false);
     const [version, setVersion] = useState(0);
     const [snap, setSnap] = useState<Snap | null>(null);
@@ -104,7 +104,7 @@ function BanditInstrument(props: {means?: number[]; focus?: number; epsilon?: nu
     const strategy = STRATEGIES[focus];
 
     return (
-        <Instrument hint="Press play: all four strategies pull arms on the same slot machines at the same time">
+        <Instrument hint="All four strategies pull arms on the same slot machines at the same time">
             <div ref={ref}>
                 <FigureLayout
                     sideWidth={300}
@@ -182,7 +182,7 @@ function BanditInstrument(props: {means?: number[]; focus?: number; epsilon?: nu
                                     {running ? Icon.pause : Icon.play}
                                 </Button>
                                 <Button onClick={() => sim.current && (sim.current.step(1), setSnap(read(sim.current)))}>Pull once</Button>
-                                <Button onClick={() => (setVersion(version + 1), setSnap(null), setRunning(false))} title="Reset">
+                                <Button onClick={() => (setVersion(version + 1), setSnap(null))} title="Reset">
                                     {Icon.reset}
                                 </Button>
                             </div>
@@ -196,8 +196,8 @@ function BanditInstrument(props: {means?: number[]; focus?: number; epsilon?: nu
                                 ))}
                             </Stats>
                             <div className="control-row">
-                                <Button onClick={() => (setMeans(randomMeans(k)), setSnap(null), setRunning(false))}>New arms</Button>
-                                <Button onClick={() => (setMeans(randomMeans(k === 3 ? 6 : 3)), setSnap(null), setRunning(false))}>{k === 3 ? "6 arms" : "3 arms"}</Button>
+                                <Button onClick={() => (setMeans(randomMeans(k)), setSnap(null))}>New arms</Button>
+                                <Button onClick={() => (setMeans(randomMeans(k === 3 ? 6 : 3)), setSnap(null))}>{k === 3 ? "6 arms" : "3 arms"}</Button>
                             </div>
                         </div>
                     }
@@ -211,7 +211,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "thompson",
         title: "Three slot machines",
-        prompt: <>Press play. Thompson sampling keeps a belief (violin) about each arm's payout and pulls whichever arm wins a random draw from those beliefs. Watch the beliefs about bad arms freeze as they stop being worth trying.</>,
+        prompt: <>Thompson sampling keeps a belief (violin) about each arm's payout and pulls whichever arm wins a random draw from those beliefs. Watch the beliefs about bad arms freeze as they stop being worth trying.</>,
         render: () => <BanditInstrument />,
     },
     {

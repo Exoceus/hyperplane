@@ -178,7 +178,7 @@ function KernelTrick() {
     const data = useMemo(() => make_shape("circles", 140, 0.08, 9), []);
     const [cam, setCam] = useState<Camera>({yaw: 0.6, pitch: 0.42});
     const [last, setLast] = useState<{x: number; y: number} | null>(null);
-    const tl = useTimeline(1, 0.5);
+    const tl = useTimeline(1, 0.5, {autoplay: true, runKey: data, delay: 0.8});
     const lift = ease(tl.t);
 
     const plane = useMemo(() => {
@@ -223,7 +223,7 @@ function KernelTrick() {
     const planeAlpha = ease((tl.t - 0.75) / 0.25);
 
     return (
-        <Instrument hint="Drag to rotate · press play to lift the points">
+        <Instrument hint="Watch the points lift into 3D · drag to rotate the view">
             <FigureLayout
                 main={
                     <>
@@ -363,7 +363,7 @@ const SCENARIOS: Scenario[] = [
     {
         id: "kernel-trick",
         title: "Kernel trick in 3D",
-        prompt: <>Press play to lift every point to height x² + y². Then drag to rotate: in 3D a flat plane separates the rings, and it meets the bowl in a circle.</>,
+        prompt: <>Every point lifts to height x² + y². Drag to rotate: in 3D a flat plane separates the rings, and it meets the bowl in a circle.</>,
         render: () => <KernelTrick />,
     },
 ];
