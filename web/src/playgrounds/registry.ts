@@ -35,7 +35,7 @@ export const PLAYGROUNDS: PlaygroundMeta[] = [
     {slug: "k-means", title: "k-Means", tagline: "Assign, update, repeat: centroids hunting for clusters.", category: "clustering", status: "live"},
     {slug: "pca", title: "PCA", tagline: "Find the directions where the data actually varies.", category: "dimensionality", status: "live"},
 
-    {slug: "svm", title: "Support Vector Machines", tagline: "The widest street between two classes, and kernels that bend it.", category: "classification", status: "soon"},
+    {slug: "svm", title: "Support Vector Machines", tagline: "The widest street between two classes, and kernels that bend it.", category: "classification", status: "live"},
     {slug: "decision-trees", title: "Decision Trees & Forests", tagline: "Carve the plane into boxes, one question at a time.", category: "classification", status: "soon"},
     {slug: "naive-bayes", title: "Naive Bayes", tagline: "Classify with one Gaussian per class and Bayes' rule.", category: "classification", status: "soon"},
     {slug: "overfitting", title: "Overfitting & Regularization", tagline: "Crank up the polynomial degree, then rein it in.", category: "regression", status: "soon"},
@@ -59,6 +59,7 @@ export const PLAYGROUND_COMPONENTS: Record<string, LazyExoticComponent<Component
     "neural-networks": lazy(() => import("./neural-networks/NeuralNetworks")),
     "k-means": lazy(() => import("./kmeans/KMeans")),
     pca: lazy(() => import("./pca/Pca")),
+    svm: lazy(() => import("./svm/Svm")),
 };
 
 export function categoryOf(slug: string): Category | undefined {
