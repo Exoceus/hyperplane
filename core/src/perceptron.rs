@@ -1,98 +1,122 @@
-use serde::{Deserialize, Serialize};
-use tsify::Tsify;
+//! Rosenblatt's perceptron, recorded update-by-update so the UI can replay
+//! (and smoothly animate) every single correction it makes.
+
 use wasm_bindgen::prelude::*;
 
-use crate::structs;
-use crate::utils;
-
+/// Result of a perceptron run.
+///
+/// `history` has stride 5: `[w1, w2, b, point_index, epoch]`. Record 0 is the
+/// initial state (`point_index = -1`, `epoch = 0`); every following record is
+/// the state *after* an update triggered by the point at `point_index`.
 #[wasm_bindgen]
-pub struct Perceptron {
-    margin: f64,
-    weights: Vec<f64>,
-    bias: f64,
-    max_epochs: usize,
-}
-
-#[derive(Tsify, Debug, Clone, Serialize, Deserialize)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct PerceptronStep {
-    epoch: usize,
-    weights: Vec<f64>,
-    bias: f64,
-}
-
-#[derive(Tsify, Debug, Clone, Serialize, Deserialize)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct PerceptronResult {
-    pub steps: Vec<PerceptronStep>,
-    pub converged: bool,
+pub struct PerceptronRun {
+    history: Vec<f64>,
+    converged: bool,
+    epochs: u32,
 }
 
 #[wasm_bindgen]
-impl Perceptron {
-    #[wasm_bindgen(constructor)]
-    pub fn new(margin: f64, weights: Vec<f64>, bias: f64, max_epochs: usize) -> Self {
-        Self {
-            margin,
-            weights,
-            bias,
-            max_epochs,
-        }
+impl PerceptronRun {
+    #[wasm_bindgen(getter)]
+    pub fn history(&self) -> Vec<f64> {
+        self.history.clone()
     }
 
-    #[wasm_bindgen]
-    pub fn train(&mut self, data: Vec<structs::LabelledDataPoint>) -> PerceptronResult {
-        let mut steps = Vec::new();
+    #[wasm_bindgen(getter)]
+    pub fn converged(&self) -> bool {
+        self.converged
+    }
 
-        steps.push(PerceptronStep {
-            epoch: 0,
-            weights: self.weights.clone(),
-            bias: self.bias.clone(),
-        });
+    /// Number of full passes over the data that were performed.
+    #[wasm_bindgen(getter)]
+    pub fn epochs(&self) -> u32 {
+        self.epochs
+    }
+}
 
-        for epoch in 1..=self.max_epochs {
-            let mut encountered_mislabelled_point = false;
+/// Train a perceptron on stride-3 data (class 1 → y = +1, class 0 → y = −1).
+///
+/// The update on a mistake (`y·(w·x + b) ≤ 0`) is the classic
+/// `w ← w + y·x`, `b ← b + y` (the bias update is skipped when
+/// `use_bias` is false, which forces the boundary through the origin).
+/// Points are visited in the order given, cycling until a full clean pass
+/// (converged), `max_epochs` passes, or `max_updates` updates.
+#[wasm_bindgen]
+pub fn perceptron_train(
+    data: &[f64],
+    w1: f64,
+    w2: f64,
+    b: f64,
+    use_bias: bool,
+    max_epochs: u32,
+    max_updates: u32,
+) -> PerceptronRun {
+    let n = data.len() / 3;
+    let (mut w1, mut w2, mut b) = (w1, w2, if use_bias { b } else { 0.0 });
+    let mut history = vec![w1, w2, b, -1.0, 0.0];
+    let mut updates = 0u32;
 
-            for i in 0..data.len() {
-                let data_point = &data[i];
-
-                let prediction =
-                    utils::dot(&self.weights, &data_point.data_point.features) + self.bias;
-
-                if data_point.label as f64 * prediction <= self.margin {
-                    encountered_mislabelled_point = true;
-
-                    self.weights = utils::add(
-                        &self.weights,
-                        &utils::scale(data_point.label as f64, &data_point.data_point.features),
-                    );
-
-                    self.bias = self.bias + data_point.label as f64;
-
-                    steps.push(PerceptronStep {
-                        epoch: epoch,
-                        weights: self.weights.clone(),
-                        bias: self.bias.clone(),
-                    });
+    for epoch in 1..=max_epochs {
+        let mut mistakes = 0;
+        for i in 0..n {
+            let (x, y_coord) = (data[3 * i], data[3 * i + 1]);
+            let y = if data[3 * i + 2] > 0.5 { 1.0 } else { -1.0 };
+            if y * (w1 * x + w2 * y_coord + b) <= 0.0 {
+                mistakes += 1;
+                w1 += y * x;
+                w2 += y * y_coord;
+                if use_bias {
+                    b += y;
                 }
-                // no update necessary if correct prediction
-            }
-
-            if !encountered_mislabelled_point {
-                return PerceptronResult {
-                    steps: steps,
-                    converged: true,
-                };
+                history.extend_from_slice(&[w1, w2, b, i as f64, epoch as f64]);
+                updates += 1;
+                if updates >= max_updates {
+                    return PerceptronRun { history, converged: false, epochs: epoch };
+                }
             }
         }
+        if mistakes == 0 {
+            return PerceptronRun { history, converged: true, epochs: epoch };
+        }
+    }
+    PerceptronRun { history, converged: false, epochs: max_epochs }
+}
 
-        return PerceptronResult {
-            steps: steps,
-            converged: false,
-        };
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::datasets::make_linear;
+
+    #[test]
+    fn converges_on_separable_data_within_novikoff_bound() {
+        let (tw1, tw2, tb) = (0.7, -0.4, 0.15);
+        let data = make_linear(150, tw1, tw2, tb, 0.08, 0.0, 11);
+        let run = perceptron_train(&data, 0.0, 0.0, 0.0, true, 10_000, 100_000);
+        assert!(run.converged);
+        let h = run.history();
+        let last = &h[h.len() - 5..];
+        for p in data.chunks(3) {
+            let y = if p[2] > 0.5 { 1.0 } else { -1.0 };
+            assert!(y * (last[0] * p[0] + last[1] * p[1] + last[2]) > 0.0);
+        }
+        // Novikoff: mistakes ≤ (R/γ)² in the augmented space (x, y, 1).
+        let norm = (tw1 * tw1 + tw2 * tw2 + tb * tb).sqrt();
+        let mut gamma = f64::INFINITY;
+        let mut r: f64 = 0.0;
+        for p in data.chunks(3) {
+            let y = if p[2] > 0.5 { 1.0 } else { -1.0 };
+            gamma = gamma.min(y * (tw1 * p[0] + tw2 * p[1] + tb) / norm);
+            r = r.max((p[0] * p[0] + p[1] * p[1] + 1.0).sqrt());
+        }
+        let mistakes = h.len() / 5 - 1;
+        assert!((mistakes as f64) <= (r / gamma).powi(2));
     }
 
-    pub fn prediction(&self, data_point: &structs::DataPoint) -> f64 {
-        utils::dot(&self.weights, &data_point.features) + self.bias
+    #[test]
+    fn stops_on_non_separable_data() {
+        let data = make_linear(60, 1.0, 1.0, 0.0, 0.0, 0.25, 5);
+        let run = perceptron_train(&data, 0.0, 0.0, 0.0, true, 50, 100_000);
+        assert!(!run.converged);
+        assert_eq!(run.epochs(), 50);
     }
 }
