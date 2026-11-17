@@ -6,22 +6,23 @@ Everything runs in the browser. The algorithms live in a Rust crate compiled to 
 
 ## Playgrounds
 
-| Category       | Playground           | Scenarios to try                                                                         |
-| -------------- | -------------------- | ---------------------------------------------------------------------------------------- |
-| Foundations    | Linear regression    | Residuals drawn as literal squares; the loss bowl in (m, b) space; feature centering      |
-| Foundations    | Gradient descent     | 1D step-size regimes; GD vs. momentum vs. RMSProp vs. Adam on five landscapes             |
-| Classification | The perceptron       | Draggable weight vector; each update shown in data space _and_ weight space; Novikoff bound |
-| Classification | Logistic regression  | Sigmoid and per-point cross-entropy; probability contours; why ‖w‖ blows up without L2   |
-| Classification | k-nearest neighbors  | Live decision regions, neighborhood shapes per metric, train vs. test accuracy over k    |
-| Classification | Neural networks      | A single neuron, a trainable network with per-neuron maps, and layers that bend the plane |
-| Classification | Support vector machines | Widest street, soft margin and C, outliers, RBF γ overfitting, the kernel trick in 3D  |
-| Classification | Decision trees & forests | Grow a tree split by split, overfitting with depth, axis-aligned staircases, forest vs. tree |
-| Unsupervised   | k-means clustering   | Lloyd's algorithm phase by phase with Voronoi regions, draggable initial centroids, elbow |
-| Unsupervised   | Gaussian mixtures (EM) | Ellipses that stretch to fit, soft membership, k-means vs. GMM, too many components  |
-| Reinforcement  | Q-learning           | Editable gridworld, cliff walk, explore vs. exploit, discounting, value iteration     |
-| Unsupervised   | PCA                  | Rotate a projection line (kept vs. lost variance); rotate into the eigenbasis and project |
+| Category                 | Playground                   | Scenarios to try                                                                            |
+| ------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------- |
+| Regression               | Linear regression            | Residuals as literal squares, an outlier, the loss bowl, a too-big step, centering            |
+| Regression               | Overfitting & regularization | Polynomial degree vs. test error, ridge vs. lasso, more data, why L1 gives exact zeros        |
+| Optimization             | Gradient descent             | GD vs. momentum vs. RMSProp vs. Adam on valleys, saddles and bumpy landscapes; 1D step sizes |
+| Classification           | Perceptron                   | Separable vs. noisy data, a razor-thin margin, updates in weight space, classify by hand     |
+| Classification           | Logistic regression          | Overlap vs. separable data, ‖w‖ blowing up without L2, per-point cross-entropy              |
+| Classification           | k-nearest neighbors          | k = 1 memorizing, smoothing, distance metrics, draw your own data                            |
+| Classification           | Support vector machines      | Widest street, soft margin and C, outliers, RBF γ overfitting, the kernel trick in 3D        |
+| Classification           | Decision trees & forests     | Grow a tree split by split, too deep, axis-aligned staircases, forest vs. tree              |
+| Classification           | Neural networks              | Train live, a 3-neuron fence, no nonlinearity, ReLU folds, layers bending space             |
+| Clustering               | k-means                      | Lloyd's algorithm step by step, bad starts, wrong k, moons, the elbow                        |
+| Clustering               | Gaussian mixtures (EM)       | Ellipses that stretch to fit, soft membership, k-means vs. GMM, too many components         |
+| Dimensionality reduction | PCA                          | Find the best line, round vs. needle clouds, rotate into the eigenbasis                      |
+| Reinforcement learning   | Q-learning                   | Editable gridworld, cliff walk, explore vs. exploit, discounting, value iteration           |
 
-More are on the way: SVMs, the kernel trick, decision trees, backpropagation, regularization, and Gaussian mixtures.
+Next up: naive Bayes, Gaussian processes and DBSCAN.
 
 ## Architecture
 
