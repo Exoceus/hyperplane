@@ -76,9 +76,9 @@ function drawGrid(p: Painter, g: GridState, opts: {showQ: boolean; hideUnvisited
         const box = [x, y, x + 1, y, x + 1, y + 1, x, y + 1];
         const code = cells[s];
         if (code === 1) {
-            p.polyline(box, {close: true, fill: "#2c3447", color: "#3a4459", width: 1});
-            for (let k = 1; k <= 3; k++) p.line(x + k * 0.25, y, x, y + k * 0.25, {color: "#3d4760", width: 1});
-            for (let k = 1; k <= 3; k++) p.line(x + 1, y + k * 0.25, x + k * 0.25, y + 1, {color: "#3d4760", width: 1});
+            p.polyline(box, {close: true, fill: "#302e29", color: "#403d36", width: 1});
+            for (let k = 1; k <= 3; k++) p.line(x + k * 0.25, y, x, y + k * 0.25, {color: "#45423a", width: 1});
+            for (let k = 1; k <= 3; k++) p.line(x + 1, y + k * 0.25, x + k * 0.25, y + 1, {color: "#45423a", width: 1});
             continue;
         }
         if (TERMINAL[code]) {

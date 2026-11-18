@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import {Link} from "react-router";
+import {FeatureArt} from "../components/FeatureArt";
 import {Plot} from "../components/Plot";
 import {Thumb} from "../components/Thumb";
 import {probabilityColor} from "../lib/colors";
@@ -7,7 +8,7 @@ import {useAnimationFrame, useInView} from "../lib/hooks";
 import {heatImage} from "../lib/painter";
 import {C, classColor} from "../lib/theme";
 import {contour_segments, make_shape, Mlp, randomSeed} from "../lib/wasm";
-import {CATEGORIES, LIVE, PLAYGROUNDS, type CategoryId} from "../playgrounds/registry";
+import {CATEGORIES, LIVE, ORDERED, PLAYGROUNDS, type CategoryId} from "../playgrounds/registry";
 
 const HERO_VIEW = {xmin: -1.65, xmax: 1.65, ymin: -1.05, ymax: 1.05};
 const SHAPES = ["spiral", "moons", "circles", "xor"] as const;
@@ -57,28 +58,95 @@ function HeroCanvas() {
     }, visible);
 
     return (
-        <div ref={ref} className="hero-canvas">
-            <Plot
-                label="A neural network learning to separate two classes, live"
-                view={HERO_VIEW}
-                draw={(p) => {
-                    p.clear();
-                    if (frame) p.image(frame.img);
-                    p.grid(0.25, {axes: false});
-                    if (frame) p.contours(frame.contour, () => ({color: C.white, width: 2, alpha: 0.9}));
-                    const d = sim.current?.data;
-                    if (d) for (let i = 0; i < d.length; i += 3) p.point(d[i], d[i + 1], classColor(d[i + 2]), {r: 3.6});
-                }}
-            />
-            <div className="hero-canvas-caption">
+        <figure ref={ref} className="hero-figure">
+            <div className="hero-canvas">
+                <span className="tick tick-tl" aria-hidden />
+                <span className="tick tick-tr" aria-hidden />
+                <span className="tick tick-bl" aria-hidden />
+                <span className="tick tick-br" aria-hidden />
+                <Plot
+                    label="A neural network learning to separate two classes, live"
+                    view={HERO_VIEW}
+                    draw={(p) => {
+                        p.clear();
+                        if (frame) p.image(frame.img);
+                        p.grid(0.25, {axes: false});
+                        if (frame) p.contours(frame.contour, () => ({color: C.white, width: 2, alpha: 0.9}));
+                        const d = sim.current?.data;
+                        if (d) for (let i = 0; i < d.length; i += 3) p.point(d[i], d[i + 1], classColor(d[i + 2]), {r: 3.6});
+                    }}
+                />
+            </div>
+            <figcaption className="hero-caption">
+                <span className="fig-label">Fig. 0</span>
                 <span>
-                    <span className="live-dot" /> A 2-10-10-1 network learning <em>{frame?.shape ?? "spiral"}</em>, live
+                    A 2-10-10-1 network learning <em>{frame?.shape ?? "spiral"}</em>, live in your browser.{" "}
+                    <Link to="/play/neural-networks">Open this playground →</Link>
                 </span>
-                <span className="mono">
+                <span className="mono hero-meta">
+                    <span className="live-dot" />
                     step {frame?.steps ?? 0} · loss {(frame?.loss ?? 0.69).toFixed(3)}
                 </span>
+            </figcaption>
+        </figure>
+    );
+}
+
+interface Featured {
+    slug: string;
+    pitch: string;
+    jumps: {id: string; title: string}[];
+}
+
+/** Two playgrounds worth starting with. */
+const FEATURED: Featured[] = [
+    {
+        slug: "gradient-descent",
+        pitch: "Drop four optimizers on a loss landscape and race them: plain gradient descent zig-zags, momentum overshoots, Adam adapts. Then orbit the same race in 3D.",
+        jumps: [
+            {id: "valley", title: "Narrow valley"},
+            {id: "saddle", title: "Escape the saddle"},
+            {id: "3d", title: "In 3D"},
+        ],
+    },
+    {
+        slug: "q-learning",
+        pitch: "An agent that knows nothing explores a gridworld until value leaks back from the goal and its arrows line up into a route. Paint walls and pits while it learns.",
+        jumps: [
+            {id: "maze", title: "Find the goal"},
+            {id: "cliff", title: "Cliff walk"},
+            {id: "build", title: "Build a world"},
+        ],
+    },
+];
+
+function FeatureCard({f}: {f: Featured}) {
+    const meta = PLAYGROUNDS.find((p) => p.slug === f.slug)!;
+    const cat = CATEGORIES.find((c) => c.id === meta.category)!;
+    return (
+        <article className="feature">
+            <Link to={`/play/${f.slug}`} className="feature-art" aria-label={`Open ${meta.title}`}>
+                <FeatureArt slug={f.slug} label={`${meta.title}, animated preview`} />
+                <span className="feature-live">
+                    <span className="live-dot" /> live preview
+                </span>
+            </Link>
+            <div className="feature-body">
+                <div className="feature-kicker">{cat.title}</div>
+                <h3>
+                    <Link to={`/play/${f.slug}`}>{meta.title}</Link>
+                </h3>
+                <p>{f.pitch}</p>
+                <div className="feature-jump">
+                    <span className="feature-jump-label">Jump to</span>
+                    {f.jumps.map((j) => (
+                        <Link key={j.id} className="jump" to={`/play/${f.slug}?s=${j.id}`}>
+                            {j.title}
+                        </Link>
+                    ))}
+                </div>
             </div>
-        </div>
+        </article>
     );
 }
 
@@ -94,24 +162,45 @@ export default function Home() {
         <div className="home">
             <section className="hero">
                 <div className="hero-text">
-                    <div className="eyebrow">Machine learning playgrounds</div>
+                    <div className="eyebrow">Machine learning, by hand</div>
                     <h1>
-                        Poke the algorithms. <span className="grad">Watch the math move.</span>
+                        Poke the algorithms. <em>Watch the math move.</em>
                     </h1>
                     <p className="hero-lede">
-                        {LIVE.length} interactive sandboxes. Drag data, tweak parameters, and run scenarios that show where each algorithm shines
-                        and where it breaks. Everything runs live in your browser, powered by Rust and WebAssembly.
+                        {LIVE.length} interactive playgrounds. Drag the data, turn the knobs, and step through scenarios that show where each
+                        algorithm shines and where it breaks. Everything runs live in your browser on a Rust core compiled to WebAssembly.
                     </p>
                     <div className="hero-ctas">
-                        <a className="btn btn-primary btn-lg" href="#playgrounds">
-                            Pick a playground ↓
+                        <Link className="btn btn-primary btn-lg" to="/play/neural-networks">
+                            Start with neural networks
+                        </Link>
+                        <a className="btn btn-ghost btn-lg" href="#playgrounds">
+                            Browse all {LIVE.length} ↓
                         </a>
                     </div>
                 </div>
                 <HeroCanvas />
             </section>
 
-            <section id="playgrounds" className="catalog">
+            <section className="featured" aria-labelledby="featured-title">
+                <header className="section-head">
+                    <span className="section-num">§ 1</span>
+                    <h2 id="featured-title">Start here</h2>
+                    <p>Two playgrounds that show what this place is for.</p>
+                </header>
+                <div className="features">
+                    {FEATURED.map((f) => (
+                        <FeatureCard key={f.slug} f={f} />
+                    ))}
+                </div>
+            </section>
+
+            <section id="playgrounds" className="catalog" aria-labelledby="catalog-title">
+                <header className="section-head">
+                    <span className="section-num">§ 2</span>
+                    <h2 id="catalog-title">Every playground</h2>
+                    <p>Grouped by what the algorithm is for. Each one opens on a scenario that runs itself.</p>
+                </header>
                 <div className="filters" role="tablist" aria-label="Filter by category">
                     <button type="button" className={`chip ${filter === "all" ? "is-active" : ""}`} onClick={() => setFilter("all")}>
                         All <span className="chip-count">{PLAYGROUNDS.length}</span>
@@ -125,25 +214,21 @@ export default function Home() {
                 <div className="cards">
                     {shown.map((p) => {
                         const cat = CATEGORIES.find((c) => c.id === p.category)!;
-                        return p.status === "live" ? (
+                        const n = ORDERED.indexOf(p) + 1;
+                        return (
                             <Link key={p.slug} to={`/play/${p.slug}`} className="card">
                                 <div className="card-thumb">
                                     <Thumb slug={p.slug} />
                                 </div>
                                 <div className="card-body">
-                                    <div className="card-kicker">{cat.title}</div>
+                                    <div className="card-kicker">
+                                        <span>{cat.title}</span>
+                                        <span className="card-index">No. {String(n).padStart(2, "0")}</span>
+                                    </div>
                                     <h3>{p.title}</h3>
                                     <p>{p.tagline}</p>
                                 </div>
                             </Link>
-                        ) : (
-                            <div key={p.slug} className="card card-soon" aria-disabled>
-                                <div className="card-body">
-                                    <div className="card-kicker">{cat.title} · coming soon</div>
-                                    <h3>{p.title}</h3>
-                                    <p>{p.tagline}</p>
-                                </div>
-                            </div>
                         );
                     })}
                 </div>
