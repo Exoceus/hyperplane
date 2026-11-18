@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from "react";
-import {Button, Icon, Player, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
+import {Button, LiveControls, Player, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
 import {FigureLayout} from "../../components/Figure";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
@@ -7,6 +7,7 @@ import {Instrument, Playground, type Scenario} from "../../components/Playground
 import {Plot, type PlotPointer} from "../../components/Plot";
 import {useAnimationFrame, useInView, useTimeline} from "../../lib/hooks";
 import type {Painter} from "../../lib/painter";
+import {useSpeed} from "../../lib/speed";
 import {C, rgba} from "../../lib/theme";
 import {GridWorld, randomSeed, value_iteration} from "../../lib/wasm";
 
@@ -161,7 +162,8 @@ function QInstrument(props: QProps) {
     const [gamma, setGamma] = useState(props.gamma ?? 0.95);
     const [slip, setSlip] = useState(props.slip ?? 0);
     const [stepReward, setStepReward] = useState(props.stepReward ?? -0.01);
-    const [speed, setSpeed] = useState(props.speed ?? 12);
+    // Agent steps per second: this scenario's natural pace times the viewer's speed.
+    const speed = (props.speed ?? 12) * useSpeed();
     const [running, setRunning] = useState(true);
     const [showQ, setShowQ] = useState(false);
     const [tool, setTool] = useState(1);
@@ -196,6 +198,14 @@ function QInstrument(props: QProps) {
         agent.current?.set_params(alpha, gamma, epsilon, stepReward, slip);
     }, [alpha, gamma, epsilon, stepReward, slip, map]);
 
+    const advance = (g: GridWorld) => {
+        const m = motion.current;
+        const r = g.step();
+        m.from = r[0];
+        m.to = r[4] > 0 ? r[2] : g.pos;
+        m.t = 0;
+    };
+
     useAnimationFrame((dt) => {
         const g = agent.current;
         if (!g) return;
@@ -205,12 +215,7 @@ function QInstrument(props: QProps) {
             let steps = Math.floor(m.acc);
             m.acc -= steps;
             steps = Math.min(steps, 5000);
-            for (let i = 0; i < steps; i++) {
-                const r = g.step();
-                m.from = r[0];
-                m.to = r[4] > 0 ? r[2] : g.pos;
-                m.t = 0;
-            }
+            for (let i = 0; i < steps; i++) advance(g);
             m.t = Math.min(1, m.t + dt * Math.max(speed, 4));
         }
         if (running || !snap) setSnap(read(g));
@@ -273,22 +278,22 @@ function QInstrument(props: QProps) {
                                     p.circle(fx + (tx - fx) * t, fy + (ty - fy) * t, Math.min(p.kx, p.ky) * 0.22, {fill: C.yellow, stroke: C.canvas, width: 2.5});
                                 }}
                             />
-                            <div className="control-row" style={{gap: 10}}>
-                                <Button variant="primary" onClick={() => setRunning(!running)} title={running ? "Pause" : "Play"}>
-                                    {running ? Icon.pause : Icon.play}
-                                </Button>
+                            <LiveControls
+                                running={running}
+                                onToggle={() => setRunning(!running)}
+                                onStep={() =>
+                                    act((g) => {
+                                        advance(g);
+                                        motion.current.t = 1;
+                                    })
+                                }
+                                stepTitle="One move"
+                                onReset={() => act((g) => g.reset())}
+                                resetTitle="Forget everything it has learned"
+                                status={<span className="mono">{Math.round(speed)} moves per second</span>}
+                            >
                                 <Button onClick={() => act((g) => g.train(100))}>Train 100 episodes</Button>
-                                <Button onClick={() => act((g) => g.reset())} title="Forget everything">
-                                    {Icon.reset} Reset
-                                </Button>
-                                <div className="segmented small" role="radiogroup" aria-label="Speed">
-                                    {[2, 12, 60, 600].map((s) => (
-                                        <button key={s} type="button" className={speed === s ? "is-active" : ""} onClick={() => setSpeed(s)}>
-                                            {s}/s
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                            </LiveControls>
                             <div className="panel-label">
                                 <span>Steps per episode (smoothed)</span>
                                 <span className="panel-label-right">episode {snap?.episode ?? 0}</span>
@@ -363,7 +368,7 @@ function ValueIterationInstrument(props: {map?: MapName}) {
                             cursor="cell"
                             draw={(p) => drawGrid(p, {w: base.w, h: base.h, cells, q}, {showQ: false})}
                         />
-                        <Player timeline={tl} speeds={[1.5, 3, 10]} status={`Sweep ${sweep}: values have spread up to ${sweep} steps from every reward.`} />
+                        <Player timeline={tl} status={`Sweep ${sweep}: values have spread up to ${sweep} steps from every reward.`} />
                     </>
                 }
                 side={

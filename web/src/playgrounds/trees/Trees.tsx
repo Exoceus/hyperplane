@@ -256,7 +256,6 @@ function TreeInstrument(props: {kind?: Kind; depth?: number; minLeaf?: number; n
                         </div>
                         <Player
                             timeline={tl}
-                            speeds={[1.5, 3, 10]}
                             status={
                                 next && tl.t < splits ? (
                                     <>
@@ -391,7 +390,7 @@ function ForestInstrument(props: {kind?: Kind; trees?: number; depth?: number}) 
                                 />
                             </Panel>
                         </div>
-                        <Player timeline={tl} speeds={[0.5, 1, 3]} status={`${shown} of ${trees} trees · shading = how unanimous the vote is`} />
+                        <Player timeline={tl} status={`${shown} of ${trees} trees · shading = how unanimous the vote is`} />
                     </>
                 }
                 side={

@@ -136,7 +136,6 @@ function DbscanInstrument(props: {kind?: Kind; eps?: number; minPts?: number}) {
                         />
                         <Player
                             timeline={tl}
-                            speeds={[20, 60, 240]}
                             status={done ? `${run.clusters} clusters · ${cores} core · ${n - cores - noise} border · ${noise} noise points` : `${shown} of ${events} points reached`}
                         />
                     </>

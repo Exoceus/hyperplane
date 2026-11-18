@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {setSpeed as setGlobalSpeed, useSpeed} from "./speed";
 
 /** Call `cb(dtSeconds)` every animation frame while `active`. */
 export function useAnimationFrame(cb: (dt: number) => void, active: boolean) {
@@ -50,6 +51,7 @@ export interface Timeline {
     stepBack: () => void;
     reset: () => void;
     seek: (t: number) => void;
+    /** The viewer's speed multiplier (shared by every animation on the site). */
     speed: number;
     setSpeed: (s: number) => void;
 }
@@ -75,9 +77,13 @@ export interface TimelineOptions {
     duration?: number;
 }
 
-export function useTimeline(length: number, initialSpeed = 2, opts: TimelineOptions = {}): Timeline {
+/**
+ * `pace` is the natural rate in steps per second (or, with `duration`, a
+ * multiplier on it); the viewer's speed setting scales it further.
+ */
+export function useTimeline(length: number, pace = 2, opts: TimelineOptions = {}): Timeline {
     const [t, setTState] = useState(0);
-    const [speed, setSpeed] = useState(initialSpeed);
+    const speed = useSpeed();
     const [mode, setMode] = useState<Mode>("idle");
     const tRef = useRef(0);
     const targetRef = useRef(0);
@@ -99,7 +105,7 @@ export function useTimeline(length: number, initialSpeed = 2, opts: TimelineOpti
         const cur = Math.min(tRef.current, lenRef.current);
         const target = Math.min(targetRef.current, lenRef.current);
         const base = duration ? Math.max(lenRef.current / duration, 1) : 1;
-        const rate = mode === "step" ? Math.max(speed * base, 3) : speed * base;
+        const rate = mode === "step" ? Math.max(pace * speed * base, 3) : pace * speed * base;
         const next = cur < target ? Math.min(target, cur + dt * rate) : Math.max(target, cur - dt * rate);
         setT(next);
         if (next === target) setMode("idle");
@@ -172,7 +178,7 @@ export function useTimeline(length: number, initialSpeed = 2, opts: TimelineOpti
     const toggle = useCallback(() => (playing ? pause() : play()), [playing, pause, play]);
 
     const tc = Math.max(0, Math.min(t, len));
-    return {t: tc, length: len, playing, atEnd: tc >= len, play, pause, toggle, stepForward, stepBack, reset, seek, speed, setSpeed};
+    return {t: tc, length: len, playing, atEnd: tc >= len, play, pause, toggle, stepForward, stepBack, reset, seek, speed, setSpeed: setGlobalSpeed};
 }
 
 /** Smooth ease-in-out on [0, 1]. */

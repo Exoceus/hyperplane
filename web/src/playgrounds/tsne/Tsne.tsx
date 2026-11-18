@@ -1,11 +1,12 @@
 import {useEffect, useMemo, useRef, useState} from "react";
-import {Button, Icon, Slider, Stat, Stats} from "../../components/Controls";
+import {Button, LiveControls, Slider, Stat, Stats} from "../../components/Controls";
 import {FigureLayout, Panel} from "../../components/Figure";
 import {M, MathBlock} from "../../components/Math";
 import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {Plot} from "../../components/Plot";
 import {useAnimationFrame, useInView} from "../../lib/hooks";
 import type {View} from "../../lib/painter";
+import {getSpeed, takeSteps} from "../../lib/speed";
 import {C, classColor, hexToRgb, mix, type RGB} from "../../lib/theme";
 import {make_clusters_nd, make_swiss_roll, pca, randomSeed, Tsne} from "../../lib/wasm";
 
@@ -122,6 +123,7 @@ function TsneInstrument(props: {kind?: Kind; perplexity?: number}) {
     const sim = useRef<Tsne | null>(null);
     const scale = useRef(1);
     const klAt = useRef({iter: -1000, kl: NaN});
+    const acc = useRef(0);
 
     useEffect(() => {
         const t = new Tsne(data.points, data.stride, data.dim, perplexity, data.points.length / data.stride > 300 ? 120 : 80, randomSeed());
@@ -137,7 +139,9 @@ function TsneInstrument(props: {kind?: Kind; perplexity?: number}) {
     useAnimationFrame(() => {
         const t = sim.current;
         if (!t) return;
-        if (running && t.iteration < 1000) t.step(4);
+        // Four gradient steps per frame at 1×, scaled by the viewer's speed.
+        const n = running && t.iteration < 1000 ? takeSteps(acc, 4 * getSpeed(), 40) : 0;
+        if (n > 0) t.step(n);
         else if (frame && frame.iter === t.iteration) return;
         const y = t.embedding();
         const target = fit(y);
@@ -169,13 +173,16 @@ function TsneInstrument(props: {kind?: Kind; perplexity?: number}) {
                     side={
                         <div className="controls">
                             <Slider label="perplexity (≈ neighbors considered)" value={perplexity} min={2} max={80} step={1} onChange={setPerplexity} color={C.yellow} format={(v) => v.toFixed(0)} />
-                            <div className="control-row">
-                                <Button variant="primary" onClick={() => setRunning(!running)} title={running ? "Pause" : "Play"}>
-                                    {running ? Icon.pause : Icon.play}
-                                </Button>
-                                <Button onClick={() => setRestart(restart + 1)}>{Icon.reset} Restart</Button>
+                            <LiveControls
+                                running={running}
+                                onToggle={() => setRunning(!running)}
+                                onStep={() => sim.current && sim.current.iteration < 1000 && sim.current.step(1)}
+                                stepTitle="One gradient step"
+                                onReset={() => setRestart(restart + 1)}
+                                resetTitle="Restart from a random layout"
+                            >
                                 <Button onClick={() => setSeed(randomSeed())}>New sample</Button>
-                            </div>
+                            </LiveControls>
                             <Stats>
                                 <Stat label="iteration" value={frame?.iter ?? 0} />
                                 <Stat label="KL(P‖Q)" value={frame && Number.isFinite(frame.kl) ? frame.kl.toFixed(3) : "—"} color={C.yellow} />

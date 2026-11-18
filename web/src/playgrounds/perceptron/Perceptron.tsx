@@ -310,7 +310,7 @@ function UpdatesFigure({seed: seed0 = 3}: {seed?: number}) {
                 </Panel>
             </div>
             <div style={{marginTop: 14, display: "grid", gap: 10}}>
-                <Player timeline={tl} speeds={[0.5, 1, 2, 4]} />
+                <Player timeline={tl} />
                 <div className="status-line">{status}</div>
                 <div className="control-row">
                     <Button onClick={() => (setSeed(randomSeed()), setW0(null), tl.reset())}>New data</Button>
@@ -442,7 +442,6 @@ function ConvergenceFigure(props: {n?: number; margin?: number; noise?: number; 
                         />
                         <Player
                             timeline={tl}
-                            speeds={[2, 6, 20, 60]}
                             status={
                                 done ? (
                                     run.converged ? (

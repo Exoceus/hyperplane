@@ -324,7 +324,6 @@ function EarlyStopping(props: {degree?: number}) {
                         />
                         <Player
                             timeline={tl}
-                            speeds={[0.5, 1, 3]}
                             status={
                                 pastBest ? (
                                     <span className="c-orange">Step {step.toLocaleString()}: still lowering training error, but now by memorizing noise, so test error is rising.</span>

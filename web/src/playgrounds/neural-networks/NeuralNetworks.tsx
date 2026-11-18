@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from "react";
-import {Button, Icon, Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
+import {Button, LiveControls, Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
 import {FigureLayout, Panel} from "../../components/Figure";
 import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
@@ -11,6 +11,7 @@ import {probabilityColor} from "../../lib/colors";
 import {drawLabelled} from "../../lib/data";
 import {ease, lerp, useAnimationFrame, useInView, useTimeline} from "../../lib/hooks";
 import {heatImage, type View} from "../../lib/painter";
+import {getSpeed, takeSteps} from "../../lib/speed";
 import {C, CLASS_RGB, classColor, rgba, sequential, type RGB} from "../../lib/theme";
 import {contour_segments, make_shape, Mlp, randomSeed} from "../../lib/wasm";
 
@@ -169,6 +170,7 @@ function PlaygroundFigure(props: {shape?: Shape; layers?: number[]; act?: number
     const sizes = useMemo(() => [2, ...layers, 1], [layers]);
     const key = `${sizes.join("-")}|${act}|${netSeed}|${shape}|${noise}|${dataSeed}`;
     const sim = useRef<{net: Mlp; key: string; dirty: boolean; frameNo: number; history: number[]} | null>(null);
+    const acc = useRef(0);
     const inputs = useMemo(() => [inputImage(0), inputImage(1)], []);
 
     useEffect(
@@ -186,9 +188,10 @@ function PlaygroundFigure(props: {shape?: Shape; layers?: number[]; act?: number
             s = {net: new Mlp(new Uint32Array(sizes), act, netSeed), key, dirty: true, frameNo: 0, history: []};
             sim.current = s;
         }
-        if (running) {
-            const loss = s.net.train(data, 4, lr, 0, 1, 0);
-            s.history.push(loss);
+        // Four Adam steps per frame at 1×, scaled by the viewer's speed.
+        const n = running ? takeSteps(acc, 4 * getSpeed(), 40) : 0;
+        if (n > 0) {
+            s.history.push(s.net.train(data, n, lr, 0, 1, 0));
             s.dirty = true;
         }
         s.frameNo++;
@@ -217,6 +220,12 @@ function PlaygroundFigure(props: {shape?: Shape; layers?: number[]; act?: number
     const setLayer = (i: number, n: number) => setLayers(layers.map((v, j) => (j === i ? Math.max(1, Math.min(8, n)) : v)));
     const reset = () => {
         setNetSeed(randomSeed());
+    };
+    const stepOnce = () => {
+        const s = sim.current;
+        if (!s || s.key !== key) return;
+        s.history.push(s.net.train(data, 1, lr, 0, 1, 0));
+        s.dirty = true;
     };
 
     // Network diagram layout in its own coordinate system.
@@ -299,16 +308,16 @@ function PlaygroundFigure(props: {shape?: Shape; layers?: number[]; act?: number
                                     />
                                 </Panel>
                             </div>
-                            <div className="control-row" style={{gap: 10}}>
-                                <Button variant="primary" onClick={() => setRunning(!running)} title={running ? "Pause training" : "Train"}>
-                                    {running ? Icon.pause : Icon.play}
-                                </Button>
-                                <Button onClick={reset} title="Re-initialize weights">
-                                    {Icon.reset} New weights
-                                </Button>
-                                <span className="note mono">{status}</span>
-                            </div>
-                            <LineChart label="Training loss" series={[{values: lossHistory, color: C.red}]} height={90} yMin={0} xLabel="training step ×4" />
+                            <LiveControls
+                                running={running}
+                                onToggle={() => setRunning(!running)}
+                                onStep={stepOnce}
+                                stepTitle="One training step"
+                                onReset={reset}
+                                resetTitle="Start again from new random weights"
+                                status={<span className="mono">{status}</span>}
+                            />
+                            <LineChart label="Training loss" series={[{values: lossHistory, color: C.red}]} height={90} yMin={0} xLabel="training →" />
                         </>
                     }
                     side={
@@ -611,7 +620,7 @@ function WarpFigure(props: {shape?: "moons" | "xor" | "circles"}) {
                                     p.textPx(layerName, 12, 22, {color: C.text2, size: 12.5});
                                 }}
                             />
-                            <Player timeline={tl} speeds={[0.35, 0.7, 1.5]} />
+                            <Player timeline={tl} />
                         </>
                     }
                     side={
@@ -674,6 +683,8 @@ function Surface3D(props: {shape?: Shape; layers?: number[]}) {
     const [frame, setFrame] = useState<{heights: Float64Array; loss: number; steps: number} | null>(null);
     const [ref, visible] = useInView<HTMLDivElement>();
     const sim = useRef<{net: Mlp; key: string} | null>(null);
+    const acc = useRef(0);
+    const pending = useRef(0);
     const key = `${shape}|${layers.join("-")}|${seed}`;
 
     useEffect(
@@ -691,8 +702,11 @@ function Surface3D(props: {shape?: Shape; layers?: number[]}) {
             s = {net: new Mlp(new Uint32Array([2, ...layers, 1]), 0, seed), key};
             sim.current = s;
         }
-        if (!running && frame) return;
-        const loss = running && s.net.steps < 4000 ? s.net.train(data, 1, 0.015, 0, 1, 0) : s.net.loss(data);
+        let n = running && s.net.steps < 4000 ? takeSteps(acc, getSpeed(), 40) : 0;
+        n += pending.current;
+        pending.current = 0;
+        if (n === 0 && frame) return;
+        const loss = n > 0 ? s.net.train(data, n, 0.015, 0, 1, 0) : s.net.loss(data);
         const h = (2 * SPAN) / (NS - 1);
         const p = s.net.predict_grid(-SPAN - h / 2, SPAN + h / 2, -SPAN - h / 2, SPAN + h / 2, NS, NS);
         setFrame({heights: p, loss, steps: s.net.steps});
@@ -719,12 +733,14 @@ function Surface3D(props: {shape?: Shape; layers?: number[]}) {
                     }
                     side={
                         <div className="controls">
-                            <div className="control-row">
-                                <Button variant="primary" onClick={() => setRunning(!running)} title={running ? "Pause" : "Train"}>
-                                    {running ? Icon.pause : Icon.play}
-                                </Button>
-                                <Button onClick={() => setSeed(randomSeed())}>{Icon.reset} New weights</Button>
-                            </div>
+                            <LiveControls
+                                running={running}
+                                onToggle={() => setRunning(!running)}
+                                onStep={() => (pending.current += 1)}
+                                stepTitle="One training step"
+                                onReset={() => setSeed(randomSeed())}
+                                resetTitle="Start again from new random weights"
+                            />
                             <Stats>
                                 <Stat label="training step" value={frame?.steps ?? 0} />
                                 <Stat label="loss" value={frame ? frame.loss.toFixed(3) : "—"} color={C.red} />

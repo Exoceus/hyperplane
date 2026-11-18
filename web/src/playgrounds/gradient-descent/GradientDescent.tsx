@@ -111,7 +111,7 @@ function OneDFigure(props: {fn?: number; lr?: number}) {
                             <Stat label="f′(x)" value={fmt(dfx, 3)} color={C.pink} />
                             <Stat label="step −ηf′" value={fmt(-lr * dfx, 3)} color={C.yellow} />
                         </Stats>
-                        <Player timeline={tl} showSpeed={false} status={`step ${k} of ${K}`} />
+                        <Player timeline={tl} status={`step ${k} of ${K}`} />
                     </div>
                 }
             />
@@ -293,7 +293,7 @@ function RaceFigure({surface = 0}: {surface?: number}) {
                                 p.circle(start[0], start[1], 6, {stroke: C.white, width: 1.5, dash: [3, 3]});
                             }}
                         />
-                        <Player timeline={tl} speeds={[10, 40, 120]} status={surf.blurb} />
+                        <Player timeline={tl} status={surf.blurb} />
                     </>
                 }
                 side={
@@ -417,7 +417,7 @@ function Race3D({surface = 2}: {surface?: number}) {
                                 sc.point([(sx - cx) / half, (sy - cy) / half, field.height(surface_eval(surf.id, sx, sy)[0]) + 0.03], C.white, 3.5, {ring: C.white, bias: 0.05});
                             }}
                         />
-                        <Player timeline={tl} speeds={[0.5, 1, 3]} status={surf.blurb} />
+                        <Player timeline={tl} status={surf.blurb} />
                     </>
                 }
                 side={

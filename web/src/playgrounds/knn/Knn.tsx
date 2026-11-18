@@ -144,7 +144,6 @@ function KnnFigure(props: {kind?: Kind; noise?: number; k?: number; metric?: num
                     />
                     <Player
                         timeline={tl}
-                        speeds={[0.5, 1, 3]}
                         status={scanning ? `Classifying cell ${cell + 1} of ${SCAN * SCAN}: find its ${k} nearest points, take a majority vote, paint the cell.` : "Every cell classified. Hover anywhere to probe a point yourself."}
                     />
                     </>

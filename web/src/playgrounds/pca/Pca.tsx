@@ -159,7 +159,6 @@ function DirectionFigure(props: {stretch?: number}) {
                     />
                     <Player
                         timeline={tl}
-                        speeds={[0.5, 1, 3]}
                         status={
                             manual ? (
                                 <>Your guess: θ = {deg.toFixed(0)}°. Press <b>Run power iteration</b> to let the algorithm improve it.</>
@@ -293,7 +292,7 @@ function RotateFigure() {
                                 for (let i = 0; i < moved.length; i += 2) p.point(moved[i], moved[i + 1], C.blue, {r: 4});
                             }}
                         />
-                        <Player timeline={tl} speeds={[0.25, 0.5, 1]} status={stage} />
+                        <Player timeline={tl} status={stage} />
                     </>
                 }
                 side={
@@ -436,7 +435,7 @@ function Pca3D() {
                                 }
                             }}
                         />
-                        <Player timeline={tl} speeds={[0.5, 1, 3]} status={stage} />
+                        <Player timeline={tl} status={stage} />
                     </>
                 }
                 side={
