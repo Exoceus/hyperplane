@@ -47,6 +47,9 @@ export function Layout({children}: {children: ReactNode}) {
                     <a href={REPO} target="_blank" rel="noreferrer">
                         Source on GitHub ↗
                     </a>
+                    <a href={`${REPO}/blob/main/docs/contributing.md`} target="_blank" rel="noreferrer">
+                        Add a playground ↗
+                    </a>
                 </div>
             </footer>
         </div>

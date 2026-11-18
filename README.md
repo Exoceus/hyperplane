@@ -1,76 +1,58 @@
 # Hyperplane
 
-Interactive playgrounds for machine-learning algorithms. Drag the data, tweak the parameters, and run scenarios that show where each algorithm shines and where it breaks. Try it: [hyperplane.jatinm.com](https://hyperplane.jatinm.com/)
+**Poke the algorithms. Watch the math move.**
 
-Everything runs in the browser. The algorithms live in a Rust crate compiled to WebAssembly, and the UI is a static React site, so there is no server and nothing to pay for.
+Interactive playgrounds for machine learning. Drag the data, turn the knobs, and step through scenarios that show where each algorithm shines and where it breaks. Every algorithm runs live in your browser.
 
-## Playgrounds
+### → [hyperplane.jatinm.com](https://hyperplane.jatinm.com/)
 
-| Category                 | Playground                   | Scenarios to try                                                                            |
-| ------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------- |
-| Regression               | Linear regression            | Residuals as literal squares, an outlier, the loss bowl, a too-big step, centering            |
-| Regression               | Overfitting & regularization | Polynomial degree vs. test error, ridge vs. lasso, more data, why L1 gives exact zeros        |
-| Regression               | Gaussian processes           | Uncertainty bands, length scale, noise, kernels as beliefs, evidence fitting, Bayesian optimization |
-| Optimization             | Gradient descent             | GD vs. momentum vs. RMSProp vs. Adam on valleys, saddles and bumpy landscapes; 1D step sizes |
-| Classification           | Perceptron                   | Separable vs. noisy data, a razor-thin margin, updates in weight space, classify by hand     |
-| Classification           | Logistic regression          | Overlap vs. separable data, ‖w‖ blowing up without L2, per-point cross-entropy              |
-| Classification           | k-nearest neighbors          | k = 1 memorizing, smoothing, distance metrics, draw your own data                            |
-| Classification           | Naive Bayes                  | Learn from a stream, curved boundaries, the naive assumption vs. QDA, densities as 3D hills |
-| Classification           | Support vector machines      | Widest street, soft margin and C, outliers, RBF γ overfitting, the kernel trick in 3D        |
-| Classification           | Decision trees & forests     | Grow a tree split by split, too deep, axis-aligned staircases, forest vs. tree              |
-| Classification           | Neural networks              | Train live, a 3-neuron fence, no nonlinearity, ReLU folds, layers bending space             |
-| Clustering               | k-means                      | Lloyd's algorithm step by step, bad starts, wrong k, moons, the elbow                        |
-| Clustering               | Gaussian mixtures (EM)       | Ellipses that stretch to fit, soft membership, k-means vs. GMM, too many components         |
-| Clustering               | DBSCAN                       | Clusters spreading point to point, rings, noise, ε too small / too big, mixed density      |
-| Dimensionality reduction | PCA                          | Find the best line, round vs. needle clouds, rotate into the eigenbasis                      |
-| Dimensionality reduction | t-SNE                        | Clusters PCA can't see, perplexity, cluster sizes and distances that lie, swiss roll       |
-| Reinforcement learning   | Multi-armed bandits          | Thompson's beliefs, greedy getting stuck, UCB optimism, close calls, many arms              |
-| Reinforcement learning   | Q-learning                   | Editable gridworld, cliff walk, explore vs. exploit, discounting, value iteration           |
+[![The Hyperplane home page: a neural network learning a spiral, live](docs/images/home.png)](https://hyperplane.jatinm.com/)
 
-Every playground animates its algorithm step by step, and several have orbitable 3D views.
+<table>
+  <tr>
+    <td width="33%"><a href="https://hyperplane.jatinm.com/play/neural-networks"><img src="docs/images/neural-networks.png" alt="Neural networks playground: a network untangling a spiral, with every neuron's response drawn inside the network"></a></td>
+    <td width="33%"><a href="https://hyperplane.jatinm.com/play/gradient-descent?s=3d"><img src="docs/images/gradient-descent-3d.png" alt="Gradient descent playground: optimizers racing over an orbitable 3D loss surface"></a></td>
+    <td width="33%"><a href="https://hyperplane.jatinm.com/play/q-learning"><img src="docs/images/q-learning.png" alt="Q-learning playground: an agent exploring a paintable gridworld"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Neural networks</b><br>watch a network untangle a spiral</td>
+    <td align="center"><b>Gradient descent</b><br>race optimizers over a 3D loss surface</td>
+    <td align="center"><b>Q-learning</b><br>an agent learns a world you paint</td>
+  </tr>
+</table>
 
-## Architecture
+## What's inside
 
-```
-core/   Rust crate → WebAssembly (wasm-bindgen). All numerical work:
-        datasets, perceptron, linear/logistic regression, optimizers,
-        marching-squares contours, k-NN, k-means, PCA, a small MLP.
-web/    Vite + React + TypeScript site.
-        src/lib/painter.ts    canvas drawing in data coordinates
-        src/components/       Plot, Figure, controls, KaTeX math, charts
-        src/components/Playground.tsx   scenario presets + stage shell
-        src/playgrounds/      one folder per playground + registry.ts
-```
+18 playgrounds and 111 scenarios:
 
-The JS/WASM boundary uses flat `Float64Array` buffers with documented strides (for example, labelled 2D data is `[x, y, class, …]`) instead of serialized objects. That keeps calls cheap enough to retrain models and repaint decision regions every animation frame.
+- **Regression:** linear regression, overfitting & regularization, Gaussian processes
+- **Optimization:** gradient descent (GD, momentum, RMSProp, Adam)
+- **Classification:** perceptron, logistic regression, k-NN, naive Bayes, SVMs, decision trees & forests, neural networks
+- **Clustering:** k-means, Gaussian mixtures (EM), DBSCAN
+- **Dimensionality reduction:** PCA, t-SNE
+- **Reinforcement learning:** multi-armed bandits, Q-learning
 
-### Adding a playground
+Each one opens on a scenario that plays itself. You can pause, step, scrub and change the speed, then change anything and watch it rerun. The [playground guide](docs/playgrounds.md) lists every scenario.
 
-1. Put the algorithm in a new module in `core/src/`, export it with `#[wasm_bindgen]`, and add unit tests (`cargo test`).
-2. Create `web/src/playgrounds/<slug>/<Name>.tsx`. Build one or more *instruments* (interactive components built from `Plot`, the controls in `components/Controls.tsx`, and `useTimeline` for step-through animation) that accept preset props.
-3. Export a `<Playground scenarios={…} explainer={…} />`. Each scenario is a title, a one-line "try this" prompt, and a `render()` that returns a preset instrument.
-4. Register it in `web/src/playgrounds/registry.ts`.
+## How it works
 
-## Development
+Everything is client-side: the algorithms are written in Rust and compiled to WebAssembly, and the UI is a static React site drawing on plain `<canvas>`. There is no server and no tracking. See [architecture](docs/architecture.md).
+
+## Run it locally
 
 ```sh
 npm install --include=dev
-npm run dev:all        # builds the wasm package, then runs Vite and rebuilds wasm on Rust changes
+npm run dev:all        # builds the wasm core, starts Vite, rebuilds on Rust changes
 ```
 
-Other useful commands:
+Needs Node 24, Rust with the `wasm32-unknown-unknown` target, and [wasm-pack](https://github.com/drager/wasm-pack).
 
-```sh
-cd core && cargo test --release     # Rust unit tests
-npm run build                       # full production build (wasm + site), as on Netlify
-```
+## Add a playground
 
-Requires Rust (with the `wasm32-unknown-unknown` target), [wasm-pack](https://github.com/drager/wasm-pack) and Node 24.
+New algorithms are welcome. The [contributing guide](docs/contributing.md) walks through it: write the algorithm in Rust with tests, build an instrument from the shared layout and controls, write a few scenarios, and register it.
 
-## Deployment
+## Docs
 
-Netlify builds and deploys `main` automatically (`netlify.toml`). Changes land through pull requests that auto-merge once CI (Rust tests, wasm build, lint, type-check and site build) passes.
-
-## Style guide
-
-- [Conventional commits](https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13#types)
+- [Playground guide](docs/playgrounds.md): every playground and scenario at a glance
+- [Architecture](docs/architecture.md): the Rust core, the JS/WASM boundary, and how the UI animates
+- [Contributing](docs/contributing.md): local setup, adding a playground, and how changes ship
