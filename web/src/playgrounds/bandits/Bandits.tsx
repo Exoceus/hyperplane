@@ -1,10 +1,10 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import {Button, Legend, LiveControls, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
-import {FigureLayout} from "../../components/Figure";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {Plot} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {useAnimationFrame, useInView} from "../../lib/hooks";
 import {useSpeed} from "../../lib/speed";
 import {C} from "../../lib/theme";
@@ -106,105 +106,111 @@ function BanditInstrument(props: {means?: number[]; focus?: number; epsilon?: nu
     const strategy = STRATEGIES[focus];
 
     return (
-        <Instrument hint="All four strategies pull arms on the same slot machines at the same time">
-            <div ref={ref}>
-                <FigureLayout
-                    sideWidth={300}
-                    main={
-                        <>
-                            <div className="panel-label">
-                                <span>What {strategy.name} believes about each arm</span>
-                                <span className="panel-label-right">pull {total}</span>
-                            </div>
-                            <Plot
-                                label="Per-arm beliefs for the selected strategy"
-                                view={{xmin: 0, xmax: k, ymin: -0.12, ymax: 1.06}}
-                                aspect={0.5}
-                                draw={(p) => {
-                                    p.clear();
-                                    for (let v = 0; v <= 1.001; v += 0.25) {
-                                        p.line(0, v, k, v, {color: C.grid, width: 1});
-                                        p.textPx(`${Math.round(v * 100)}%`, 4, p.sy(v) - 3, {color: C.muted, size: 10, font: "mono"});
-                                    }
-                                    for (let a = 0; a < k; a++) {
-                                        const cx = a + 0.5;
-                                        const n = counts[focus * k + a];
-                                        const w = wins[focus * k + a];
-                                        const share = total > 0 ? n / total : 0;
-                                        // Pull share as a faint column.
-                                        p.polyline([cx - 0.42, -0.12, cx + 0.42, -0.12, cx + 0.42, -0.12 + share * 1.18, cx - 0.42, -0.12 + share * 1.18], {
-                                            close: true,
-                                            fill: strategy.color,
-                                            fillAlpha: 0.07,
-                                            color: "none",
-                                        });
-                                        if (focus === 3) {
-                                            // Thompson: the Beta posterior as a violin.
-                                            const A = 1 + w;
-                                            const B = 1 + n - w;
-                                            let peak = 0;
-                                            const ys: number[] = [];
-                                            for (let i = 0; i <= 120; i++) {
-                                                const y = i / 120;
-                                                const d = betaPdf(Math.min(0.999, Math.max(0.001, y)), A, B);
-                                                ys.push(d);
-                                                peak = Math.max(peak, d);
-                                            }
-                                            const pts: number[] = [];
-                                            ys.forEach((d, i) => pts.push(cx + (0.38 * d) / peak, i / 120));
-                                            for (let i = ys.length - 1; i >= 0; i--) pts.push(cx - (0.38 * ys[i]) / peak, i / 120);
-                                            p.polyline(pts, {close: true, fill: strategy.color, fillAlpha: 0.28, color: strategy.color, width: 1.5});
-                                        } else if (n > 0) {
-                                            const mean = w / n;
-                                            const half = focus === 2 ? ucbC * Math.sqrt((2 * Math.log(Math.max(total, 1))) / n) : 1.96 * Math.sqrt(Math.max(mean * (1 - mean), 0.01) / n);
-                                            const lo = focus === 2 ? mean : Math.max(0, mean - half);
-                                            const hi = Math.min(1.05, mean + half);
-                                            p.line(cx, lo, cx, hi, {color: strategy.color, width: 6, alpha: 0.4, cap: "butt"});
-                                            p.circle(cx, mean, 6, {fill: strategy.color, stroke: C.canvas, width: 2});
+        <div ref={ref}>
+            <Rig
+                hint="All four strategies pull arms on the same slot machines at the same time"
+                visual={
+                    <>
+                        <div className="panel-label">
+                            <span>What {strategy.name} believes about each arm</span>
+                            <span className="panel-label-right">pull {total}</span>
+                        </div>
+                        <Plot
+                            label="Per-arm beliefs for the selected strategy"
+                            view={{xmin: 0, xmax: k, ymin: -0.12, ymax: 1.06}}
+                            aspect={0.5}
+                            draw={(p) => {
+                                p.clear();
+                                for (let v = 0; v <= 1.001; v += 0.25) {
+                                    p.line(0, v, k, v, {color: C.grid, width: 1});
+                                    p.textPx(`${Math.round(v * 100)}%`, 4, p.sy(v) - 3, {color: C.muted, size: 10, font: "mono"});
+                                }
+                                for (let a = 0; a < k; a++) {
+                                    const cx = a + 0.5;
+                                    const n = counts[focus * k + a];
+                                    const w = wins[focus * k + a];
+                                    const share = total > 0 ? n / total : 0;
+                                    // Pull share as a faint column.
+                                    p.polyline([cx - 0.42, -0.12, cx + 0.42, -0.12, cx + 0.42, -0.12 + share * 1.18, cx - 0.42, -0.12 + share * 1.18], {
+                                        close: true,
+                                        fill: strategy.color,
+                                        fillAlpha: 0.07,
+                                        color: "none",
+                                    });
+                                    if (focus === 3) {
+                                        // Thompson: the Beta posterior as a violin.
+                                        const A = 1 + w;
+                                        const B = 1 + n - w;
+                                        let peak = 0;
+                                        const ys: number[] = [];
+                                        for (let i = 0; i <= 120; i++) {
+                                            const y = i / 120;
+                                            const d = betaPdf(Math.min(0.999, Math.max(0.001, y)), A, B);
+                                            ys.push(d);
+                                            peak = Math.max(peak, d);
                                         }
-                                        if (reveal) p.line(cx - 0.3, means[a], cx + 0.3, means[a], {color: a === best ? C.yellow : C.text2, width: 2, dash: [5, 3]});
-                                        const pulledNow = snap !== null && snap.last[focus] === a && running;
-                                        p.text(pulledNow ? `▸ arm ${a + 1}` : `arm ${a + 1}`, cx, -0.06, {color: pulledNow ? C.yellow : C.text2, size: 11, align: "center", baseline: "middle", weight: pulledNow ? 700 : 500});
-                                        p.text(`${n} pulls`, cx, 1.03, {color: C.muted, size: 10, align: "center", font: "mono"});
+                                        const pts: number[] = [];
+                                        ys.forEach((d, i) => pts.push(cx + (0.38 * d) / peak, i / 120));
+                                        for (let i = ys.length - 1; i >= 0; i--) pts.push(cx - (0.38 * ys[i]) / peak, i / 120);
+                                        p.polyline(pts, {close: true, fill: strategy.color, fillAlpha: 0.28, color: strategy.color, width: 1.5});
+                                    } else if (n > 0) {
+                                        const mean = w / n;
+                                        const half = focus === 2 ? ucbC * Math.sqrt((2 * Math.log(Math.max(total, 1))) / n) : 1.96 * Math.sqrt(Math.max(mean * (1 - mean), 0.01) / n);
+                                        const lo = focus === 2 ? mean : Math.max(0, mean - half);
+                                        const hi = Math.min(1.05, mean + half);
+                                        p.line(cx, lo, cx, hi, {color: strategy.color, width: 6, alpha: 0.4, cap: "butt"});
+                                        p.circle(cx, mean, 6, {fill: strategy.color, stroke: C.canvas, width: 2});
                                     }
-                                }}
-                            />
-                            <div className="panel-label">
-                                <span>Cumulative regret (lower is better)</span>
-                            </div>
-                            <LineChart label="Cumulative regret per strategy" series={series} height={110} yMin={0} xLabel="pulls" />
-                            <Legend items={STRATEGIES.map((s) => ({color: s.color, label: s.name, shape: "line" as const}))} />
-                        </>
-                    }
-                    side={
-                        <div className="controls">
+                                    if (reveal) p.line(cx - 0.3, means[a], cx + 0.3, means[a], {color: a === best ? C.yellow : C.text2, width: 2, dash: [5, 3]});
+                                    const pulledNow = snap !== null && snap.last[focus] === a && running;
+                                    p.text(pulledNow ? `▸ arm ${a + 1}` : `arm ${a + 1}`, cx, -0.06, {color: pulledNow ? C.yellow : C.text2, size: 11, align: "center", baseline: "middle", weight: pulledNow ? 700 : 500});
+                                    p.text(`${n} pulls`, cx, 1.03, {color: C.muted, size: 10, align: "center", font: "mono"});
+                                }
+                            }}
+                        />
+                        <div className="panel-label">
+                            <span>Cumulative regret (lower is better)</span>
+                        </div>
+                        <LineChart label="Cumulative regret per strategy" series={series} height={110} yMin={0} xLabel="pulls" />
+                        <Legend items={STRATEGIES.map((s) => ({color: s.color, label: s.name, shape: "line" as const}))} />
+                    </>
+                }
+                controls={
+                    <>
+                        <LiveControls
+                            running={running}
+                            onToggle={() => setRunning(!running)}
+                            onStep={() => sim.current && (sim.current.step(1), setSnap(read(sim.current)))}
+                            stepTitle="Pull once"
+                            onReset={() => (setVersion(version + 1), setSnap(null))}
+                            resetTitle="Forget every pull and start over"
+                            status={<span className="mono">{Math.round(speed)} pulls per second</span>}
+                        />
+                        <Group label="Watch">
                             <Segmented label="Show beliefs of" value={focus} onChange={setFocus} options={STRATEGIES.map((s) => ({value: s.id, label: s.name}))} />
-                            <LiveControls
-                                running={running}
-                                onToggle={() => setRunning(!running)}
-                                onStep={() => sim.current && (sim.current.step(1), setSnap(read(sim.current)))}
-                                stepTitle="Pull once"
-                                onReset={() => (setVersion(version + 1), setSnap(null))}
-                                resetTitle="Forget every pull and start over"
-                                status={<span className="mono">{Math.round(speed)} pulls per second</span>}
-                            />
+                            <Toggle label="Reveal true payout rates" checked={reveal} onChange={setReveal} />
+                        </Group>
+                        <Group label="Strategies">
                             <Slider label={<>ε (ε-greedy)</>} value={epsilon} min={0} max={0.5} onChange={setEpsilon} color={C.blue} />
                             <Slider label="optimism c (UCB)" value={ucbC} min={0} max={3} onChange={setUcbC} color={C.green} />
-                            <Toggle label="Reveal true payout rates" checked={reveal} onChange={setReveal} />
-                            <Stats>
-                                {STRATEGIES.map((s) => (
-                                    <Stat key={s.id} label={`${s.name} → best arm`} value={total ? `${Math.round((counts[s.id * k + best] / total) * 100)}%` : "—"} color={s.color} />
-                                ))}
-                            </Stats>
-                            <div className="control-row">
+                        </Group>
+                        <Group label="Slot machines">
+                            <Actions>
                                 <Button onClick={() => (setMeans(randomMeans(k)), setSnap(null))}>New arms</Button>
                                 <Button onClick={() => (setMeans(randomMeans(k === 3 ? 6 : 3)), setSnap(null))}>{k === 3 ? "6 arms" : "3 arms"}</Button>
-                            </div>
-                        </div>
-                    }
-                />
-            </div>
-        </Instrument>
+                            </Actions>
+                        </Group>
+                    </>
+                }
+                readouts={
+                    <Stats>
+                        {STRATEGIES.map((s) => (
+                            <Stat key={s.id} label={`${s.name} → best arm`} value={total ? `${Math.round((counts[s.id * k + best] / total) * 100)}%` : "—"} color={s.color} />
+                        ))}
+                    </Stats>
+                }
+            />
+        </div>
     );
 }
 

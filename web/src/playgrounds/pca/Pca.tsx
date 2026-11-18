@@ -1,10 +1,11 @@
 import {useMemo, useState} from "react";
 import {Button, Legend, Player, Slider, Stat, Stats} from "../../components/Controls";
-import {FigureLayout, Panel} from "../../components/Figure";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Panel} from "../../components/Figure";
+import {Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {Plot3D} from "../../components/Plot3D";
 import type {Vec3} from "../../lib/scene3d";
 import {ease, useTimeline} from "../../lib/hooks";
@@ -128,97 +129,102 @@ function DirectionFigure(props: {stretch?: number}) {
     const [mx, my] = stats.mean;
 
     return (
-        <Instrument hint="Drag anywhere to rotate the line">
-            <FigureLayout
-                main={
-                    <>
-                    <Plot
-                        label="Projecting 2D data onto a rotatable line"
-                        view={VIEW}
-                        maxHeight={560}
-                        cursor={dragging ? "grabbing" : "grab"}
-                        onPointer={onPointer}
-                        draw={(p) => {
-                            p.clear();
-                            p.grid(0.25);
-                            p.line(mx - ux * 3, my - uy * 3, mx + ux * 3, my + uy * 3, {color: C.yellow, width: 2.5});
-                            for (let i = 0; i < data.length; i += 2) {
-                                const dx = data[i] - mx;
-                                const dy = data[i + 1] - my;
-                                const s = dx * ux + dy * uy;
-                                const px = mx + s * ux;
-                                const py = my + s * uy;
-                                p.line(data[i], data[i + 1], px, py, {color: rgba(C.pink, 0.55), width: 1.2});
-                                p.circle(px, py, 3, {fill: C.yellow});
-                            }
-                            for (let i = 0; i < data.length; i += 2) p.point(data[i], data[i + 1], C.teal, {r: 4.2});
-                            p.circle(mx, my, 5, {fill: C.white, stroke: C.canvas, width: 2});
-                            p.arrow(mx, my, mx + ux * 0.45, my + uy * 0.45, {color: C.yellow, width: 3, head: 12});
-                            p.text("u", mx + ux * 0.45, my + uy * 0.45, {color: C.yellow, size: 16, font: "serif", weight: 600, dx: 8, dy: -6});
-                        }}
-                    />
-                    <Player
-                        timeline={tl}
-                        status={
-                            manual ? (
-                                <>Your guess: θ = {deg.toFixed(0)}°. Press <b>Run power iteration</b> to let the algorithm improve it.</>
-                            ) : (
-                                <>
-                                    Power iteration step {iteration}: <M>{"\\vu \\leftarrow \\Sigma\\vu / \\lVert\\Sigma\\vu\\rVert"}</M>. Each multiply by the covariance
-                                    tilts the line toward the direction of most spread.
-                                </>
-                            )
+        <Rig
+            hint="Drag anywhere to rotate the line"
+            visual={
+                <Plot
+                    label="Projecting 2D data onto a rotatable line"
+                    view={VIEW}
+                    maxHeight={560}
+                    cursor={dragging ? "grabbing" : "grab"}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        p.grid(0.25);
+                        p.line(mx - ux * 3, my - uy * 3, mx + ux * 3, my + uy * 3, {color: C.yellow, width: 2.5});
+                        for (let i = 0; i < data.length; i += 2) {
+                            const dx = data[i] - mx;
+                            const dy = data[i + 1] - my;
+                            const s = dx * ux + dy * uy;
+                            const px = mx + s * ux;
+                            const py = my + s * uy;
+                            p.line(data[i], data[i + 1], px, py, {color: rgba(C.pink, 0.55), width: 1.2});
+                            p.circle(px, py, 3, {fill: C.yellow});
                         }
-                    />
-                    </>
+                        for (let i = 0; i < data.length; i += 2) p.point(data[i], data[i + 1], C.teal, {r: 4.2});
+                        p.circle(mx, my, 5, {fill: C.white, stroke: C.canvas, width: 2});
+                        p.arrow(mx, my, mx + ux * 0.45, my + uy * 0.45, {color: C.yellow, width: 3, head: 12});
+                        p.text("u", mx + ux * 0.45, my + uy * 0.45, {color: C.yellow, size: 16, font: "serif", weight: 600, dx: 8, dy: -6});
+                    }}
+                />
+            }
+            caption={
+                    manual ? (
+                        <>Your guess: θ = {deg.toFixed(0)}°. Press <b>Run power iteration</b> to let the algorithm improve it.</>
+                    ) : (
+                        <>
+                            Power iteration step {iteration}: <M>{"\\vu \\leftarrow \\Sigma\\vu / \\lVert\\Sigma\\vu\\rVert"}</M>. Each multiply by the covariance
+                            tilts the line toward the direction of most spread.
+                        </>
+                    )
                 }
-                side={
-                    <div className="controls">
-                        <div className="side-block">
-                            <span className="control-label">Total variance, split two ways</span>
-                            <div style={{display: "flex", height: 16, borderRadius: 5, overflow: "hidden"}}>
-                                <div style={{flex: along, background: C.yellow}} />
-                                <div style={{flex: residual, background: C.pink}} />
-                            </div>
-                            <Legend
-                                items={[
-                                    {color: C.yellow, label: `along u: ${along.toFixed(3)}`, shape: "square"},
-                                    {color: C.pink, label: `off the line: ${residual.toFixed(3)}`, shape: "square"},
-                                ]}
-                            />
-                        </div>
-                        <div className="panel-label">
-                            <span>Variance vs. angle</span>
-                            <span className="panel-label-right">θ = {deg.toFixed(0)}°</span>
-                        </div>
-                        <LineChart
-                            label="Variance of the projection as a function of the angle"
-                            series={[
-                                {values: curve, color: C.yellow, dx: 180 / SAMPLES},
-                                {values: residualCurve, color: C.pink, dx: 180 / SAMPLES, dash: [4, 3]},
-                            ]}
-                            height={120}
-                            xMax={180}
-                            yMin={0}
-                            marker={deg}
-                            xLabel="θ (degrees)"
-                            onPick={(x) => setAngle((Math.max(0, Math.min(180, x)) * Math.PI) / 180)}
-                        />
-                        <Stats>
-                            <Stat label="θ" value={`${deg.toFixed(0)}°`} color={C.yellow} />
-                            <Stat label="best θ" value={`${(((((pcAngle * 180) / Math.PI) % 180) + 180) % 180).toFixed(0)}°`} color={C.green} />
-                        </Stats>
-                        <Slider label="How elongated the cloud is" value={stretch} min={0.08} max={1} onChange={setStretch} color={C.teal} format={(v) => `${v.toFixed(2)}`} />
-                        <div className="control-row">
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Find the best line">
+                        <Actions>
                             <Button variant="primary" onClick={runPower}>
                                 Run power iteration
                             </Button>
+                        </Actions>
+                    </Group>
+                    <Group label="Data">
+                        <Slider label="How elongated the cloud is" value={stretch} min={0.08} max={1} onChange={setStretch} color={C.teal} format={(v) => `${v.toFixed(2)}`} />
+                        <Actions>
                             <Button onClick={() => setSeed(randomSeed())}>New sample</Button>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="θ" value={`${deg.toFixed(0)}°`} color={C.yellow} />
+                        <Stat label="best θ" value={`${(((((pcAngle * 180) / Math.PI) % 180) + 180) % 180).toFixed(0)}°`} color={C.green} />
+                    </Stats>
+                    <div className="side-block">
+                        <span className="control-label">Total variance, split two ways</span>
+                        <div style={{display: "flex", height: 16, borderRadius: 5, overflow: "hidden"}}>
+                            <div style={{flex: along, background: C.yellow}} />
+                            <div style={{flex: residual, background: C.pink}} />
                         </div>
+                        <Legend
+                            items={[
+                                {color: C.yellow, label: `along u: ${along.toFixed(3)}`, shape: "square"},
+                                {color: C.pink, label: `off the line: ${residual.toFixed(3)}`, shape: "square"},
+                            ]}
+                        />
                     </div>
-                }
-            />
-        </Instrument>
+                    <div className="panel-label">
+                        <span>Variance vs. angle</span>
+                        <span className="panel-label-right">θ = {deg.toFixed(0)}°</span>
+                    </div>
+                    <LineChart
+                        label="Variance of the projection as a function of the angle"
+                        series={[
+                            {values: curve, color: C.yellow, dx: 180 / SAMPLES},
+                            {values: residualCurve, color: C.pink, dx: 180 / SAMPLES, dash: [4, 3]},
+                        ]}
+                        height={120}
+                        xMax={180}
+                        yMin={0}
+                        marker={deg}
+                        xLabel="θ (degrees)"
+                        onPick={(x) => setAngle((Math.max(0, Math.min(180, x)) * Math.PI) / 180)}
+                    />
+                </>
+            }
+        />
     );
 }
 
@@ -268,57 +274,61 @@ function RotateFigure() {
                   : `Projected onto PC1: one number per point, keeping ${(kept * 100).toFixed(0)}% of the variance.`;
 
     return (
-        <Instrument hint="Center, rotate, then project; it replays whenever you resample">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot
-                            label="Data rotated into its principal axes and projected"
-                            view={VIEW}
-                            maxHeight={520}
-                            draw={(p) => {
-                                p.clear();
-                                p.grid(0.25);
-                                drawEllipse(p, cur, 2, rgba(C.white, 0.6));
-                                p.arrow(cur.mean[0], cur.mean[1], cur.mean[0] + cur.v1[0] * 2 * Math.sqrt(cur.l1), cur.mean[1] + cur.v1[1] * 2 * Math.sqrt(cur.l1), {
-                                    color: C.yellow,
-                                    width: 3,
-                                });
-                                if (cur.l2 > 1e-6)
-                                    p.arrow(cur.mean[0], cur.mean[1], cur.mean[0] + cur.v2[0] * 2 * Math.sqrt(cur.l2), cur.mean[1] + cur.v2[1] * 2 * Math.sqrt(cur.l2), {
-                                        color: C.teal,
-                                        width: 3,
-                                    });
-                                for (let i = 0; i < moved.length; i += 2) p.point(moved[i], moved[i + 1], C.blue, {r: 4});
-                            }}
-                        />
-                        <Player timeline={tl} status={stage} />
-                    </>
-                }
-                side={
-                    <div className="controls">
-                        <Panel label="Covariance of what you see">
-                            <div style={{fontSize: 17, padding: "6px 0"}}>
-                                <M>{texMatrix(cur.cxx, cur.cxy, cur.cyy)}</M>
-                            </div>
-                        </Panel>
-                        <p className="note">
-                            The <span className="c-yellow">diagonal</span> entries are the variances along each axis, and the{" "}
-                            <span className="c-pink">off-diagonal</span> entry is the covariance between them. Rotating to the principal axes drives the
-                            off-diagonal entry to zero.
-                        </p>
-                        <Stats>
-                            <Stat label={<M>{"\\lambda_1"}</M>} value={base.l1.toFixed(3)} color={C.yellow} />
-                            <Stat label={<M>{"\\lambda_2"}</M>} value={base.l2.toFixed(3)} color={C.teal} />
-                            <Stat label="PC1 keeps" value={`${(kept * 100).toFixed(1)}%`} color={C.green} />
-                        </Stats>
-                        <div className="control-row">
+        <Rig
+            hint="Center, rotate, then project; it replays whenever you resample"
+            visual={
+                <Plot
+                    label="Data rotated into its principal axes and projected"
+                    view={VIEW}
+                    maxHeight={520}
+                    draw={(p) => {
+                        p.clear();
+                        p.grid(0.25);
+                        drawEllipse(p, cur, 2, rgba(C.white, 0.6));
+                        p.arrow(cur.mean[0], cur.mean[1], cur.mean[0] + cur.v1[0] * 2 * Math.sqrt(cur.l1), cur.mean[1] + cur.v1[1] * 2 * Math.sqrt(cur.l1), {
+                            color: C.yellow,
+                            width: 3,
+                        });
+                        if (cur.l2 > 1e-6)
+                            p.arrow(cur.mean[0], cur.mean[1], cur.mean[0] + cur.v2[0] * 2 * Math.sqrt(cur.l2), cur.mean[1] + cur.v2[1] * 2 * Math.sqrt(cur.l2), {
+                                color: C.teal,
+                                width: 3,
+                            });
+                        for (let i = 0; i < moved.length; i += 2) p.point(moved[i], moved[i + 1], C.blue, {r: 4});
+                    }}
+                />
+            }
+            caption={stage}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
+                        <Actions>
                             <Button onClick={() => (setSeed(randomSeed()), tl.reset())}>New sample</Button>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Panel label="Covariance of what you see">
+                        <div style={{fontSize: 17, padding: "6px 0"}}>
+                            <M>{texMatrix(cur.cxx, cur.cxy, cur.cyy)}</M>
                         </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                    </Panel>
+                    <p className="note">
+                        The <span className="c-yellow">diagonal</span> entries are the variances along each axis, and the{" "}
+                        <span className="c-pink">off-diagonal</span> entry is the covariance between them. Rotating to the principal axes drives the
+                        off-diagonal entry to zero.
+                    </p>
+                    <Stats>
+                        <Stat label={<M>{"\\lambda_1"}</M>} value={base.l1.toFixed(3)} color={C.yellow} />
+                        <Stat label={<M>{"\\lambda_2"}</M>} value={base.l2.toFixed(3)} color={C.teal} />
+                        <Stat label="PC1 keeps" value={`${(kept * 100).toFixed(1)}%`} color={C.green} />
+                    </Stats>
+                </>
+            }
+        />
     );
 }
 
@@ -393,81 +403,84 @@ function Pca3D() {
     const stage = tl.t < 1 ? "Finding the axes of greatest spread: the eigenvectors of the covariance matrix." : tl.t < 2 ? "The top two axes span the best-fitting plane." : "Projecting every point onto that plane: dropping the third coordinate.";
 
     return (
-        <Instrument hint="Drag to orbit · the right panel is the result: each point's two new coordinates">
-            <FigureLayout
-                sideWidth={330}
-                main={
-                    <>
-                        <Plot3D
-                            label="A 3D point cloud projected onto its principal plane"
-                            initial={{pitch: 0.8, yaw: -0.25}}
-                            draw={(sc) => {
-                                sc.floor(-0.85, 1, 0.25);
-                                if (s2 > 0) {
-                                    const a = 2.2 * Math.sqrt(vals[0]);
-                                    const b = 2.2 * Math.sqrt(vals[1]);
-                                    const corner = (sa: number, sb: number): Vec3 => [
-                                        mean[0] + vecs[0][0] * sa + vecs[1][0] * sb,
-                                        mean[1] + vecs[0][1] * sa + vecs[1][1] * sb,
-                                        mean[2] + vecs[0][2] * sa + vecs[1][2] * sb,
-                                    ];
-                                    const g = 4;
-                                    for (let i = 0; i < g; i++)
-                                        for (let j = 0; j < g; j++) {
-                                            const a0 = -a + (2 * a * i) / g;
-                                            const a1 = -a + (2 * a * (i + 1)) / g;
-                                            const b0 = -b + (2 * b * j) / g;
-                                            const b1 = -b + (2 * b * (j + 1)) / g;
-                                            sc.quad(corner(a0, b0), corner(a1, b0), corner(a1, b1), corner(a0, b1), "rgb(255,216,102)", {alpha: 0.14 * s2, stroke: `rgba(255,216,102,${0.45 * s2})`, width: 1});
-                                        }
+        <Rig
+            hint="Drag to orbit · the panel on the right is the result: each point's two new coordinates"
+            visual={
+                <Plot3D
+                    label="A 3D point cloud projected onto its principal plane"
+                    initial={{pitch: 0.8, yaw: -0.25}}
+                    draw={(sc) => {
+                        sc.floor(-0.85, 1, 0.25);
+                        if (s2 > 0) {
+                            const a = 2.2 * Math.sqrt(vals[0]);
+                            const b = 2.2 * Math.sqrt(vals[1]);
+                            const corner = (sa: number, sb: number): Vec3 => [
+                                mean[0] + vecs[0][0] * sa + vecs[1][0] * sb,
+                                mean[1] + vecs[0][1] * sa + vecs[1][1] * sb,
+                                mean[2] + vecs[0][2] * sa + vecs[1][2] * sb,
+                            ];
+                            const g = 4;
+                            for (let i = 0; i < g; i++)
+                                for (let j = 0; j < g; j++) {
+                                    const a0 = -a + (2 * a * i) / g;
+                                    const a1 = -a + (2 * a * (i + 1)) / g;
+                                    const b0 = -b + (2 * b * j) / g;
+                                    const b1 = -b + (2 * b * (j + 1)) / g;
+                                    sc.quad(corner(a0, b0), corner(a1, b0), corner(a1, b1), corner(a0, b1), "rgb(255,216,102)", {alpha: 0.14 * s2, stroke: `rgba(255,216,102,${0.45 * s2})`, width: 1});
                                 }
-                                for (let i = 0; i < N3D; i++) {
-                                    const p: Vec3 = [data[i * 3], data[i * 3 + 1], data[i * 3 + 2]];
-                                    const off = fit.coords[i * 3 + 2];
-                                    const q: Vec3 = [p[0] - vecs[2][0] * off * s3, p[1] - vecs[2][1] * off * s3, p[2] - vecs[2][2] * off * s3];
-                                    if (s2 > 0.5 && s3 < 1) sc.line(q, [p[0] - vecs[2][0] * off, p[1] - vecs[2][1] * off, p[2] - vecs[2][2] * off], rgba(C.pink, 0.5), 1);
-                                    sc.point(q, color(i), 3.8);
-                                }
-                                const cols = [C.yellow, C.teal, C.pink];
-                                for (let k = 0; k < 3; k++) {
-                                    const len = 2.2 * Math.sqrt(vals[k]) * s1;
-                                    if (len > 1e-3) sc.arrow([mean[0], mean[1], mean[2]], along(k, len), cols[k], k === 2 ? 2.5 : 3.2);
-                                }
-                            }}
-                        />
-                        <Player timeline={tl} status={stage} />
-                    </>
-                }
-                side={
-                    <div className="controls">
-                        <div className="panel-label">
-                            <span>Output: 2 numbers per point</span>
-                            <span className="panel-label-right">PC1 → · PC2 ↑</span>
-                        </div>
-                        <Plot
-                            label="Points in principal-component coordinates"
-                            view={pcView}
-                            draw={(p) => {
-                                p.clear();
-                                p.grid(0.25, {axes: true});
-                                const scale = 1.1 / Math.max(Math.abs(fit.lo), Math.abs(fit.hi), r2);
-                                for (let i = 0; i < N3D; i++) p.point(fit.coords[i * 3] * scale, fit.coords[i * 3 + 1] * scale, color(i), {r: 3.2, alpha: s3});
-                            }}
-                        />
-                        <Stats>
-                            <Stat label={<M>{"\\lambda_1"}</M>} value={vals[0].toFixed(3)} color={C.yellow} />
-                            <Stat label={<M>{"\\lambda_2"}</M>} value={vals[1].toFixed(3)} color={C.teal} />
-                            <Stat label={<M>{"\\lambda_3"}</M>} value={vals[2].toFixed(4)} color={C.pink} />
-                            <Stat label="2 PCs keep" value={`${(kept * 100).toFixed(1)}%`} color={C.green} />
-                        </Stats>
+                        }
+                        for (let i = 0; i < N3D; i++) {
+                            const p: Vec3 = [data[i * 3], data[i * 3 + 1], data[i * 3 + 2]];
+                            const off = fit.coords[i * 3 + 2];
+                            const q: Vec3 = [p[0] - vecs[2][0] * off * s3, p[1] - vecs[2][1] * off * s3, p[2] - vecs[2][2] * off * s3];
+                            if (s2 > 0.5 && s3 < 1) sc.line(q, [p[0] - vecs[2][0] * off, p[1] - vecs[2][1] * off, p[2] - vecs[2][2] * off], rgba(C.pink, 0.5), 1);
+                            sc.point(q, color(i), 3.8);
+                        }
+                        const cols = [C.yellow, C.teal, C.pink];
+                        for (let k = 0; k < 3; k++) {
+                            const len = 2.2 * Math.sqrt(vals[k]) * s1;
+                            if (len > 1e-3) sc.arrow([mean[0], mean[1], mean[2]], along(k, len), cols[k], k === 2 ? 2.5 : 3.2);
+                        }
+                    }}
+                />
+            }
+            caption={stage}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Slider label="How thick the pancake is" value={thickness} min={0.01} max={0.4} onChange={setThickness} color={C.pink} />
-                        <div className="control-row">
+                        <Actions>
                             <Button onClick={() => setSeed(randomSeed())}>New sample</Button>
-                        </div>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <div className="panel-label">
+                        <span>Output: 2 numbers per point</span>
+                        <span className="panel-label-right">PC1 → · PC2 ↑</span>
                     </div>
-                }
-            />
-        </Instrument>
+                    <Plot
+                        label="Points in principal-component coordinates"
+                        view={pcView}
+                        draw={(p) => {
+                            p.clear();
+                            p.grid(0.25, {axes: true});
+                            const scale = 1.1 / Math.max(Math.abs(fit.lo), Math.abs(fit.hi), r2);
+                            for (let i = 0; i < N3D; i++) p.point(fit.coords[i * 3] * scale, fit.coords[i * 3 + 1] * scale, color(i), {r: 3.2, alpha: s3});
+                        }}
+                    />
+                    <Stats>
+                        <Stat label={<M>{"\\lambda_1"}</M>} value={vals[0].toFixed(3)} color={C.yellow} />
+                        <Stat label={<M>{"\\lambda_2"}</M>} value={vals[1].toFixed(3)} color={C.teal} />
+                        <Stat label={<M>{"\\lambda_3"}</M>} value={vals[2].toFixed(4)} color={C.pink} />
+                        <Stat label="2 PCs keep" value={`${(kept * 100).toFixed(1)}%`} color={C.green} />
+                    </Stats>
+                </>
+            }
+        />
     );
 }
 

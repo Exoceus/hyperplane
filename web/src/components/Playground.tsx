@@ -1,5 +1,6 @@
-import {Component, Fragment, useState, type ReactNode} from "react";
+import {Component, Fragment, useMemo, useState, type ReactNode} from "react";
 import {useSearchParams} from "react-router";
+import {ScenarioContext} from "./scenario";
 
 /** One preset situation inside a playground: a configured instrument plus what to try. */
 export interface Scenario {
@@ -30,16 +31,6 @@ class StageBoundary extends Component<{children: ReactNode}, {error: Error | nul
     }
 }
 
-/** Frame for an interactive instrument, with an optional interaction hint. */
-export function Instrument({hint, children}: {hint?: ReactNode; children: ReactNode}) {
-    return (
-        <div className="instrument">
-            {hint && <div className="instrument-hint">{hint}</div>}
-            {children}
-        </div>
-    );
-}
-
 interface PlaygroundProps {
     scenarios: Scenario[];
     /** Short "how it works" notes: a few bullets and the key formulas. */
@@ -47,13 +38,15 @@ interface PlaygroundProps {
 }
 
 /**
- * The playground shell: a row of scenario presets above one big interactive
+ * The playground shell: numbered scenario presets above one big interactive
  * stage. The selected scenario is kept in the URL (?s=…) so it can be shared.
  */
 export function Playground({scenarios, explainer}: PlaygroundProps) {
     const [params, setParams] = useSearchParams();
     const [nonce, setNonce] = useState(0);
     const active = scenarios.find((s) => s.id === params.get("s")) ?? scenarios[0];
+    const index = scenarios.indexOf(active);
+    const scenarioCtx = useMemo(() => ({reset: () => setNonce((n) => n + 1)}), []);
 
     const choose = (id: string) => {
         setParams(id === scenarios[0].id ? {} : {s: id}, {replace: true, preventScrollReset: true});
@@ -63,24 +56,26 @@ export function Playground({scenarios, explainer}: PlaygroundProps) {
     return (
         <>
             <nav className="scenarios" aria-label="Scenarios">
+                <span className="scenarios-label">Scenarios</span>
                 {scenarios.map((s, i) => (
                     <button key={s.id} type="button" className={`scenario ${s.id === active.id ? "is-active" : ""}`} onClick={() => choose(s.id)} aria-pressed={s.id === active.id}>
-                        <span className="scenario-num">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="scenario-num">{i + 1}</span>
                         <span className="scenario-title">{s.title}</span>
                     </button>
                 ))}
             </nav>
-            <div className="scenario-prompt">
-                <span className="scenario-prompt-label">Try this</span>
-                <span className="scenario-prompt-text">{active.prompt}</span>
-                <button type="button" className="btn btn-subtle scenario-reset" onClick={() => setNonce((n) => n + 1)} title="Reset this scenario">
-                    Reset
-                </button>
-            </div>
-            <section className="stage">
-                <StageBoundary key={`${active.id}-${nonce}`}>
-                    <Fragment key={`${active.id}-${nonce}`}>{active.render()}</Fragment>
-                </StageBoundary>
+            <section className="stage" aria-label={active.title}>
+                <header className="stage-head">
+                    <span className="stage-num">{String(index + 1).padStart(2, "0")}</span>
+                    <div className="stage-prompt">
+                        <span className="stage-prompt-label">Try this</span> {active.prompt}
+                    </div>
+                </header>
+                <ScenarioContext.Provider value={scenarioCtx}>
+                    <StageBoundary key={`${active.id}-${nonce}`}>
+                        <Fragment key={`${active.id}-${nonce}`}>{active.render()}</Fragment>
+                    </StageBoundary>
+                </ScenarioContext.Provider>
             </section>
             <details className="explainer">
                 <summary>How it works</summary>

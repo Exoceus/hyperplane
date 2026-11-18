@@ -1,10 +1,10 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import {Button, LiveControls, Player, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
-import {FigureLayout} from "../../components/Figure";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {useAnimationFrame, useInView, useTimeline} from "../../lib/hooks";
 import type {Painter} from "../../lib/painter";
 import {useSpeed} from "../../lib/speed";
@@ -253,72 +253,76 @@ function QInstrument(props: QProps) {
     const slowEnough = speed <= 30;
 
     return (
-        <Instrument hint="The agent is exploring live · paint the grid to change its world">
-            <div ref={ref}>
-                <FigureLayout
-                    sideWidth={300}
-                    main={
-                        <>
-                            <Plot
-                                label="Gridworld with learned values and greedy policy"
-                                view={view}
-                                maxHeight={560}
-                                onPointer={onPointer}
-                                cursor="cell"
-                                draw={(p) => {
-                                    if (!snap) return p.clear();
-                                    drawGrid(p, snap, {showQ, hideUnvisited: true});
-                                    // Current episode's trail.
-                                    const trail: number[] = [];
-                                    for (const s of snap.trail) trail.push(...cellCenter(map.w, map.h, s));
-                                    if (slowEnough) p.polyline(trail, {color: rgba(C.yellow, 0.35), width: 2});
-                                    const [fx, fy] = cellCenter(map.w, map.h, m.from);
-                                    const [tx, ty] = cellCenter(map.w, map.h, slowEnough ? m.to : snap.pos);
-                                    const t = slowEnough ? m.t : 1;
-                                    p.circle(fx + (tx - fx) * t, fy + (ty - fy) * t, Math.min(p.kx, p.ky) * 0.22, {fill: C.yellow, stroke: C.canvas, width: 2.5});
-                                }}
-                            />
-                            <LiveControls
-                                running={running}
-                                onToggle={() => setRunning(!running)}
-                                onStep={() =>
-                                    act((g) => {
-                                        advance(g);
-                                        motion.current.t = 1;
-                                    })
-                                }
-                                stepTitle="One move"
-                                onReset={() => act((g) => g.reset())}
-                                resetTitle="Forget everything it has learned"
-                                status={<span className="mono">{Math.round(speed)} moves per second</span>}
-                            >
-                                <Button onClick={() => act((g) => g.train(100))}>Train 100 episodes</Button>
-                            </LiveControls>
-                            <div className="panel-label">
-                                <span>Steps per episode (smoothed)</span>
-                                <span className="panel-label-right">episode {snap?.episode ?? 0}</span>
-                            </div>
-                            <LineChart label="Steps per episode" series={[{values: smooth, color: C.yellow}, {values: lengths, color: rgba(C.muted, 0.5), width: 1}]} height={90} yMin={0} />
-                        </>
-                    }
-                    side={
-                        <div className="controls">
+        <div ref={ref}>
+            <Rig
+                hint="The agent is exploring live · paint the grid to change its world"
+                visual={
+                    <Plot
+                        label="Gridworld with learned values and greedy policy"
+                        view={view}
+                        maxHeight={560}
+                        onPointer={onPointer}
+                        cursor="cell"
+                        draw={(p) => {
+                            if (!snap) return p.clear();
+                            drawGrid(p, snap, {showQ, hideUnvisited: true});
+                            // Current episode's trail.
+                            const trail: number[] = [];
+                            for (const s of snap.trail) trail.push(...cellCenter(map.w, map.h, s));
+                            if (slowEnough) p.polyline(trail, {color: rgba(C.yellow, 0.35), width: 2});
+                            const [fx, fy] = cellCenter(map.w, map.h, m.from);
+                            const [tx, ty] = cellCenter(map.w, map.h, slowEnough ? m.to : snap.pos);
+                            const t = slowEnough ? m.t : 1;
+                            p.circle(fx + (tx - fx) * t, fy + (ty - fy) * t, Math.min(p.kx, p.ky) * 0.22, {fill: C.yellow, stroke: C.canvas, width: 2.5});
+                        }}
+                    />
+                }
+                controls={
+                    <>
+                        <LiveControls
+                            running={running}
+                            onToggle={() => setRunning(!running)}
+                            onStep={() =>
+                                act((g) => {
+                                    advance(g);
+                                    motion.current.t = 1;
+                                })
+                            }
+                            stepTitle="One move"
+                            onReset={() => act((g) => g.reset())}
+                            resetTitle="Forget everything it has learned"
+                            status={<span className="mono">{Math.round(speed)} moves per second</span>}
+                        >
+                            <Button onClick={() => act((g) => g.train(100))}>Train 100 episodes</Button>
+                        </LiveControls>
+                        <Group label="Agent">
                             <Slider label={<>exploration <M>{"\\varepsilon"}</M></>} value={epsilon} min={0} max={1} onChange={setEpsilon} color={C.yellow} />
                             <Slider label={<>discount <M>{"\\gamma"}</M></>} value={gamma} min={0} max={0.99} onChange={setGamma} color={C.purple} />
                             <Slider label={<>learning rate <M>{"\\alpha"}</M></>} value={alpha} min={0.01} max={1} onChange={setAlpha} />
+                        </Group>
+                        <Group label="World">
                             <Slider label="slip (random wind)" value={slip} min={0} max={0.6} onChange={setSlip} color={C.red} format={(v) => `${Math.round(v * 100)}%`} />
                             <Slider label="reward per step" value={stepReward} min={-0.1} max={0} onChange={setStepReward} format={(v) => v.toFixed(3)} />
-                            <Toggle label="Show all four Q-values per cell" checked={showQ} onChange={setShowQ} />
                             <Segmented label="Paint" value={tool} onChange={setTool} options={TOOLS} />
-                            <Stats>
-                                <Stat label="episodes" value={snap?.episode ?? 0} />
-                                <Stat label="last episode" value={lengths.length ? `${lengths[lengths.length - 1]} steps` : "—"} />
-                            </Stats>
+                            <Toggle label="Show all four Q-values per cell" checked={showQ} onChange={setShowQ} />
+                        </Group>
+                    </>
+                }
+                readouts={
+                    <>
+                        <Stats>
+                            <Stat label="episodes" value={snap?.episode ?? 0} />
+                            <Stat label="last episode" value={lengths.length ? `${lengths[lengths.length - 1]} steps` : "—"} />
+                        </Stats>
+                        <div className="panel-label">
+                            <span>Steps per episode (smoothed)</span>
+                            <span className="panel-label-right">episode {snap?.episode ?? 0}</span>
                         </div>
-                    }
-                />
-            </div>
-        </Instrument>
+                        <LineChart label="Steps per episode" series={[{values: smooth, color: C.yellow}, {values: lengths, color: rgba(C.muted, 0.5), width: 1}]} height={90} yMin={0} />
+                    </>
+                }
+            />
+        </div>
     );
 }
 
@@ -355,39 +359,40 @@ function ValueIterationInstrument(props: {map?: MapName}) {
     };
 
     return (
-        <Instrument hint="Each sweep is one round of Bellman backups over every cell · paint to replan">
-            <FigureLayout
-                sideWidth={300}
-                main={
-                    <>
-                        <Plot
-                            label="Value iteration on a gridworld"
-                            view={{xmin: 0, xmax: base.w, ymin: 0, ymax: base.h}}
-                            maxHeight={560}
-                            onPointer={onPointer}
-                            cursor="cell"
-                            draw={(p) => drawGrid(p, {w: base.w, h: base.h, cells, q}, {showQ: false})}
-                        />
-                        <Player timeline={tl} status={`Sweep ${sweep}: values have spread up to ${sweep} steps from every reward.`} />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Each sweep is one round of Bellman backups over every cell · paint to replan"
+            visual={
+                <Plot
+                    label="Value iteration on a gridworld"
+                    view={{xmin: 0, xmax: base.w, ymin: 0, ymax: base.h}}
+                    maxHeight={560}
+                    onPointer={onPointer}
+                    cursor="cell"
+                    draw={(p) => drawGrid(p, {w: base.w, h: base.h, cells, q}, {showQ: false})}
+                />
+            }
+            caption={`Sweep ${sweep}: values have spread up to ${sweep} steps from every reward.`}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="World">
                         <Slider label={<>discount <M>{"\\gamma"}</M></>} value={gamma} min={0} max={0.99} onChange={setGamma} color={C.purple} />
                         <Slider label="slip (random wind)" value={slip} min={0} max={0.6} onChange={setSlip} color={C.red} format={(v) => `${Math.round(v * 100)}%`} />
                         <Slider label="reward per step" value={stepReward} min={-0.1} max={0} onChange={setStepReward} format={(v) => v.toFixed(3)} />
                         <Segmented label="Paint" value={tool} onChange={setTool} options={TOOLS} />
-                        <p className="note">
-                            Value iteration knows the map and the slip probabilities, so it can <em>plan</em> without ever moving. Q-learning has to find the
-                            same values by trial and error.
-                        </p>
-                        <div className="control-row">
+                        <Actions>
                             <Button onClick={() => setCells(base.cells)}>Restore map</Button>
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <p className="note">
+                    Value iteration knows the map and the slip probabilities, so it can <em>plan</em> without ever moving. Q-learning has to find the
+                    same values by trial and error.
+                </p>
+            }
+        />
     );
 }
 

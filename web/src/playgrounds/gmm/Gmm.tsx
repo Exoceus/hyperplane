@@ -1,10 +1,11 @@
 import {useMemo, useState} from "react";
 import {Button, Player, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
-import {FigureLayout, Panel} from "../../components/Figure";
+import {Panel} from "../../components/Figure";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {Plot} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {lerp, useTimeline} from "../../lib/hooks";
 import {heatImage, type Painter, type View} from "../../lib/painter";
 import {C, CLASS_RGB, classColor, sequential} from "../../lib/theme";
@@ -126,77 +127,82 @@ function GmmInstrument(props: {kind?: Kind; k?: number}) {
     const ll = run.ll[i0];
 
     return (
-        <Instrument hint="Each EM iteration re-weights the points (E) and refits every ellipse (M); change anything to rerun">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot
-                            label="Gaussian mixture components fitting data"
-                            view={VIEW}
-                            maxHeight={580}
-                            draw={(p) => {
-                                p.clear();
-                                if (densityImg) p.image(densityImg, VIEW);
-                                p.grid(0.25, {axes: false});
-                                // Points blended by responsibility.
-                                for (let i = 0; i < n; i++) {
-                                    let r = 0;
-                                    let g = 0;
-                                    let b = 0;
-                                    for (let c = 0; c < k; c++) {
-                                        const w = lerp(run.resp[(i0 * n + i) * k + c], run.resp[(i1 * n + i) * k + c], s);
-                                        const rgb = CLASS_RGB[(c + 1) % CLASS_RGB.length];
-                                        r += w * rgb[0];
-                                        g += w * rgb[1];
-                                        b += w * rgb[2];
-                                    }
-                                    p.point(points[2 * i], points[2 * i + 1], `rgb(${r | 0},${g | 0},${b | 0})`, {r: 3.6});
-                                }
-                                for (let c = 0; c < k; c++) {
-                                    const col = classColor(c + 1);
-                                    const [mx, my, sxx, sxy, syy, w] = [0, 1, 2, 3, 4, 5].map((f) => current[c * CS + f]);
-                                    ellipse(p, mx, my, sxx, sxy, syy, 2, {color: col, width: 1.4, fill: col, fillAlpha: 0.06 + w * 0.15, dash: [5, 4]});
-                                    ellipse(p, mx, my, sxx, sxy, syy, 1, {color: col, width: 2.2});
-                                    p.circle(mx, my, 5.5, {fill: C.canvas, stroke: col, width: 2.5});
-                                    p.text(`${Math.round(w * 100)}%`, mx, my, {color: col, size: 11, font: "mono", dx: 9, dy: -8});
-                                }
-                            }}
-                        />
-                        <Player
-                            timeline={tl}
-                            status={tl.atEnd && T > 0 ? (run.converged ? `Converged after ${T} iterations.` : `Stopped after ${T} iterations.`) : `Iteration ${i0} of ${T}`}
-                        />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Each EM iteration re-weights the points (E) and refits every ellipse (M); change anything to rerun"
+            visual={
+                <Plot
+                    label="Gaussian mixture components fitting data"
+                    view={VIEW}
+                    maxHeight={580}
+                    draw={(p) => {
+                        p.clear();
+                        if (densityImg) p.image(densityImg, VIEW);
+                        p.grid(0.25, {axes: false});
+                        // Points blended by responsibility.
+                        for (let i = 0; i < n; i++) {
+                            let r = 0;
+                            let g = 0;
+                            let b = 0;
+                            for (let c = 0; c < k; c++) {
+                                const w = lerp(run.resp[(i0 * n + i) * k + c], run.resp[(i1 * n + i) * k + c], s);
+                                const rgb = CLASS_RGB[(c + 1) % CLASS_RGB.length];
+                                r += w * rgb[0];
+                                g += w * rgb[1];
+                                b += w * rgb[2];
+                            }
+                            p.point(points[2 * i], points[2 * i + 1], `rgb(${r | 0},${g | 0},${b | 0})`, {r: 3.6});
+                        }
+                        for (let c = 0; c < k; c++) {
+                            const col = classColor(c + 1);
+                            const [mx, my, sxx, sxy, syy, w] = [0, 1, 2, 3, 4, 5].map((f) => current[c * CS + f]);
+                            ellipse(p, mx, my, sxx, sxy, syy, 2, {color: col, width: 1.4, fill: col, fillAlpha: 0.06 + w * 0.15, dash: [5, 4]});
+                            ellipse(p, mx, my, sxx, sxy, syy, 1, {color: col, width: 2.2});
+                            p.circle(mx, my, 5.5, {fill: C.canvas, stroke: col, width: 2.5});
+                            p.text(`${Math.round(w * 100)}%`, mx, my, {color: col, size: 11, font: "mono", dx: 9, dy: -8});
+                        }
+                    }}
+                />
+            }
+            caption={tl.atEnd && T > 0 ? (run.converged ? `Converged after ${T} iterations.` : `Stopped after ${T} iterations.`) : `Iteration ${i0} of ${T}`}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Segmented value={kind} onChange={(v) => (setKind(v), reset())} options={KINDS} />
+                        <Actions>
+                            <Button onClick={() => (setDataSeed(randomSeed()), reset())}>New data</Button>
+                        </Actions>
+                    </Group>
+                    <Group label="Mixture">
                         <Slider label={<>components <M>{"k"}</M></>} value={k} min={1} max={7} step={1} onChange={(v) => (setK(v), reset())} format={(v) => v.toFixed(0)} color={C.yellow} />
                         <Toggle label="Show mixture density" checked={density} onChange={setDensity} />
-                        <Stats>
-                            <Stat label="iteration" value={i0} />
-                            <Stat label="log-likelihood / point" value={ll.toFixed(3)} color={C.yellow} />
-                        </Stats>
-                        <LineChart
-                            label="Log-likelihood per iteration"
-                            series={[{values: run.ll, color: C.yellow, upto: tl.t, dots: T < 40}]}
-                            height={100}
-                            yMin={T >= 2 ? run.ll[1] - 0.15 * Math.max(0.05, run.ll[T] - run.ll[1]) : undefined}
-                            xLabel="iteration"
-                            yLabel="log L"
-                        />
-                        <p className="note">
-                            Ellipses are 1σ and 2σ contours, and the labels are mixing weights <M>{"\\pi_k"}</M>. Each point's color mixes its
-                            responsibilities, so blended colors mean uncertain membership.
-                        </p>
-                        <div className="control-row">
+                        <Actions>
                             <Button onClick={() => (setInitSeed(randomSeed()), reset())}>Re-initialize</Button>
-                            <Button onClick={() => (setDataSeed(randomSeed()), reset())}>New data</Button>
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="iteration" value={i0} />
+                        <Stat label="log-likelihood / point" value={ll.toFixed(3)} color={C.yellow} />
+                    </Stats>
+                    <LineChart
+                        label="Log-likelihood per iteration"
+                        series={[{values: run.ll, color: C.yellow, upto: tl.t, dots: T < 40}]}
+                        height={100}
+                        yMin={T >= 2 ? run.ll[1] - 0.15 * Math.max(0.05, run.ll[T] - run.ll[1]) : undefined}
+                        xLabel="iteration"
+                        yLabel="log L"
+                    />
+                    <p className="note">
+                        Ellipses are 1σ and 2σ contours, and the labels are mixing weights <M>{"\\pi_k"}</M>. Each point's color mixes its
+                        responsibilities, so blended colors mean uncertain membership.
+                    </p>
+                </>
+            }
+        />
     );
 }
 
@@ -216,45 +222,54 @@ function CompareInstrument() {
     const resp = gm.resp.slice(gm.iterations * n * 3, (gm.iterations + 1) * n * 3);
 
     return (
-        <Instrument hint="Same stretched clusters, same k = 3">
-            <div className="duo">
-                <Panel label="k-means: nearest centroid">
-                    <Plot
-                        label="k-means clustering of stretched clusters"
-                        view={VIEW}
-                        draw={(p) => {
-                            p.clear();
-                            p.grid(0.25, {axes: false});
-                            for (let i = 0; i < n; i++) p.point(points[2 * i], points[2 * i + 1], classColor(km.a[i] + 1), {r: 3.6});
-                            for (let c = 0; c < 3; c++) p.circle(km.cents[2 * c], km.cents[2 * c + 1], 6, {fill: C.canvas, stroke: classColor(c + 1), width: 2.5});
-                        }}
-                    />
-                </Panel>
-                <Panel label="Gaussian mixture: most likely component">
-                    <Plot
-                        label="Gaussian mixture clustering of stretched clusters"
-                        view={VIEW}
-                        draw={(p) => {
-                            p.clear();
-                            p.grid(0.25, {axes: false});
-                            for (let i = 0; i < n; i++) {
-                                let best = 0;
-                                for (let c = 1; c < 3; c++) if (resp[i * 3 + c] > resp[i * 3 + best]) best = c;
-                                p.point(points[2 * i], points[2 * i + 1], classColor(best + 1), {r: 3.6});
-                            }
-                            for (let c = 0; c < 3; c++) {
-                                const [mx, my, sxx, sxy, syy] = [0, 1, 2, 3, 4].map((f) => last[c * CS + f]);
-                                ellipse(p, mx, my, sxx, sxy, syy, 2, {color: classColor(c + 1), width: 1.6});
-                            }
-                        }}
-                    />
-                </Panel>
-            </div>
-            <div className="control-row" style={{marginTop: 12}}>
-                <Button onClick={() => setSeed(randomSeed())}>New data</Button>
+        <Rig
+            hint="Same stretched clusters, same k = 3"
+            visual={
+                <div className="duo">
+                    <Panel label="k-means: nearest centroid">
+                        <Plot
+                            label="k-means clustering of stretched clusters"
+                            view={VIEW}
+                            draw={(p) => {
+                                p.clear();
+                                p.grid(0.25, {axes: false});
+                                for (let i = 0; i < n; i++) p.point(points[2 * i], points[2 * i + 1], classColor(km.a[i] + 1), {r: 3.6});
+                                for (let c = 0; c < 3; c++) p.circle(km.cents[2 * c], km.cents[2 * c + 1], 6, {fill: C.canvas, stroke: classColor(c + 1), width: 2.5});
+                            }}
+                        />
+                    </Panel>
+                    <Panel label="Gaussian mixture: most likely component">
+                        <Plot
+                            label="Gaussian mixture clustering of stretched clusters"
+                            view={VIEW}
+                            draw={(p) => {
+                                p.clear();
+                                p.grid(0.25, {axes: false});
+                                for (let i = 0; i < n; i++) {
+                                    let best = 0;
+                                    for (let c = 1; c < 3; c++) if (resp[i * 3 + c] > resp[i * 3 + best]) best = c;
+                                    p.point(points[2 * i], points[2 * i + 1], classColor(best + 1), {r: 3.6});
+                                }
+                                for (let c = 0; c < 3; c++) {
+                                    const [mx, my, sxx, sxy, syy] = [0, 1, 2, 3, 4].map((f) => last[c * CS + f]);
+                                    ellipse(p, mx, my, sxx, sxy, syy, 2, {color: classColor(c + 1), width: 1.6});
+                                }
+                            }}
+                        />
+                    </Panel>
+                </div>
+            }
+            controls={
+                <Group label="Data">
+                    <Actions>
+                        <Button onClick={() => setSeed(randomSeed())}>New data</Button>
+                    </Actions>
+                </Group>
+            }
+            readouts={
                 <span className="note">k-means can only draw straight Voronoi boundaries between round clusters. A GMM learns each cluster's shape.</span>
-            </div>
-        </Instrument>
+            }
+        />
     );
 }
 

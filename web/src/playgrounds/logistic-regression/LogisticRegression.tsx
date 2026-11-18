@@ -1,10 +1,10 @@
 import {useMemo, useState} from "react";
 import {Button, Legend, Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
-import {FigureLayout} from "../../components/Figure";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {Plot3D} from "../../components/Plot3D";
 import {drawSurface} from "../../lib/scene3d";
 import {probabilityColor} from "../../lib/colors";
@@ -69,82 +69,92 @@ function SigmoidFigure() {
     const threshold = Math.abs(w) > 1e-6 ? -b / w : NaN;
 
     return (
-        <Instrument hint="Move the sliders, then let gradient descent fit them">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot
-                            label="Sigmoid curve fit to one-dimensional labelled data"
-                            view={VIEW_1D}
-                            aspect={0.5}
-                            draw={(p) => {
-                                p.clear();
-                                p.grid(0.25, {axes: false});
-                                p.line(VIEW_1D.xmin, 0, VIEW_1D.xmax, 0, {color: C.axis, width: 1});
-                                p.line(VIEW_1D.xmin, 1, VIEW_1D.xmax, 1, {color: C.axis, width: 1});
-                                p.line(VIEW_1D.xmin, 0.5, VIEW_1D.xmax, 0.5, {color: rgba(C.muted, 0.4), width: 1, dash: [2, 5]});
-                                if (Number.isFinite(threshold)) p.line(threshold, VIEW_1D.ymin, threshold, VIEW_1D.ymax, {color: C.white, width: 1.5, dash: [5, 5], alpha: 0.7});
-                                const pts: number[] = [];
-                                for (let i = 0; i <= 200; i++) {
-                                    const x = VIEW_1D.xmin + ((VIEW_1D.xmax - VIEW_1D.xmin) * i) / 200;
-                                    pts.push(x, sigmoid(w * x + b));
-                                }
-                                for (let i = 0; i < data.length; i += 2) {
-                                    const x = data[i];
-                                    const y = data[i + 1];
-                                    p.line(x, y + jitter(i), x, sigmoid(w * x + b), {color: rgba(C.red, 0.45), width: 1.2});
-                                }
-                                p.polyline(pts, {color: C.yellow, width: 3});
-                                for (let i = 0; i < data.length; i += 2) p.point(data[i], data[i + 1] + jitter(i), classColor(data[i + 1]), {r: 5});
-                                p.textPx("p = 1", 8, p.sy(1) - 6, {color: C.muted, size: 11, font: "mono"});
-                                p.textPx("p = 0", 8, p.sy(0) + 14, {color: C.muted, size: 11, font: "mono"});
-                            }}
-                        />
-                        <div className="panel-label" style={{marginTop: 4}}>
-                            <span>Each point's penalty −log p(correct label)</span>
-                        </div>
-                        <Plot
-                            label="Per-point cross-entropy penalties"
-                            view={LOSS_VIEW}
-                            height={90}
-                            draw={(p) => {
-                                p.clear();
-                                for (let i = 0; i < data.length; i += 2) {
-                                    const x = data[i];
-                                    const q = sigmoid(w * x + b);
-                                    const pc = data[i + 1] > 0.5 ? q : 1 - q;
-                                    const l = Math.min(4.1, -Math.log(Math.max(pc, 1e-9)));
-                                    const half = 0.025;
-                                    p.polyline([x - half, 0, x + half, 0, x + half, l, x - half, l], {close: true, fill: classColor(data[i + 1]), fillAlpha: 0.85, color: "none"});
-                                }
-                            }}
-                        />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Move the sliders, then let gradient descent fit them"
+            visual={
+                <>
+                    <Plot
+                        label="Sigmoid curve fit to one-dimensional labelled data"
+                        view={VIEW_1D}
+                        aspect={0.5}
+                        draw={(p) => {
+                            p.clear();
+                            p.grid(0.25, {axes: false});
+                            p.line(VIEW_1D.xmin, 0, VIEW_1D.xmax, 0, {color: C.axis, width: 1});
+                            p.line(VIEW_1D.xmin, 1, VIEW_1D.xmax, 1, {color: C.axis, width: 1});
+                            p.line(VIEW_1D.xmin, 0.5, VIEW_1D.xmax, 0.5, {color: rgba(C.muted, 0.4), width: 1, dash: [2, 5]});
+                            if (Number.isFinite(threshold)) p.line(threshold, VIEW_1D.ymin, threshold, VIEW_1D.ymax, {color: C.white, width: 1.5, dash: [5, 5], alpha: 0.7});
+                            const pts: number[] = [];
+                            for (let i = 0; i <= 200; i++) {
+                                const x = VIEW_1D.xmin + ((VIEW_1D.xmax - VIEW_1D.xmin) * i) / 200;
+                                pts.push(x, sigmoid(w * x + b));
+                            }
+                            for (let i = 0; i < data.length; i += 2) {
+                                const x = data[i];
+                                const y = data[i + 1];
+                                p.line(x, y + jitter(i), x, sigmoid(w * x + b), {color: rgba(C.red, 0.45), width: 1.2});
+                            }
+                            p.polyline(pts, {color: C.yellow, width: 3});
+                            for (let i = 0; i < data.length; i += 2) p.point(data[i], data[i + 1] + jitter(i), classColor(data[i + 1]), {r: 5});
+                            p.textPx("p = 1", 8, p.sy(1) - 6, {color: C.muted, size: 11, font: "mono"});
+                            p.textPx("p = 0", 8, p.sy(0) + 14, {color: C.muted, size: 11, font: "mono"});
+                        }}
+                    />
+                    <div className="panel-label" style={{marginTop: 4}}>
+                        <span>Each point's penalty −log p(correct label)</span>
+                    </div>
+                    <Plot
+                        label="Per-point cross-entropy penalties"
+                        view={LOSS_VIEW}
+                        height={90}
+                        draw={(p) => {
+                            p.clear();
+                            for (let i = 0; i < data.length; i += 2) {
+                                const x = data[i];
+                                const q = sigmoid(w * x + b);
+                                const pc = data[i + 1] > 0.5 ? q : 1 - q;
+                                const l = Math.min(4.1, -Math.log(Math.max(pc, 1e-9)));
+                                const half = 0.025;
+                                p.polyline([x - half, 0, x + half, 0, x + half, l, x - half, l], {close: true, fill: classColor(data[i + 1]), fillAlpha: 0.85, color: "none"});
+                            }
+                        }}
+                    />
+                </>
+            }
+            controls={
+                <>
+                    {fit && <Player timeline={tl} />}
+                    <Group label="Model">
                         <Slider label={<>weight <M>{"\\yel{w}"}</M> (steepness)</>} value={w} min={-6} max={14} onChange={(v) => set({w: v, b})} color={C.yellow} />
                         <Slider label={<>bias <M>{"b"}</M> (shift)</>} value={b} min={-8} max={8} onChange={(v) => set({w, b: v})} color={C.text2} />
-                        <Stats>
-                            <Stat label="mean loss" value={loss.toFixed(3)} color={C.red} />
-                            <Stat label="accuracy" value={`${Math.round(acc * 100)}%`} color={C.green} />
-                        </Stats>
-                        <div className="control-row">
+                        <Actions>
                             <Button variant="primary" onClick={runFit}>
                                 Fit by gradient descent
                             </Button>
+                        </Actions>
+                    </Group>
+                    <Group label="Data">
+                        <Actions>
                             <Button onClick={() => (setSeed(randomSeed()), setFit(null))}>New data</Button>
-                        </div>
-                        <Legend
-                            items={[
-                                {color: C.yellow, label: "σ(wx + b)", shape: "line"},
-                                {color: C.white, label: "threshold p = ½", shape: "dash"},
-                            ]}
-                        />
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="mean loss" value={loss.toFixed(3)} color={C.red} />
+                        <Stat label="accuracy" value={`${Math.round(acc * 100)}%`} color={C.green} />
+                    </Stats>
+                    <Legend
+                        items={[
+                            {color: C.yellow, label: "σ(wx + b)", shape: "line"},
+                            {color: C.white, label: "threshold p = ½", shape: "dash"},
+                        ]}
+                    />
+                </>
+            }
+        />
     );
 }
 
@@ -207,63 +217,49 @@ function PlaneFigure(props: {sep?: number; l2?: number}) {
     const levels = [0.1, 0.25, 0.5, 0.75, 0.9];
 
     return (
-        <Instrument hint="Click to add points · click an added point to remove it">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot
-                            label="Logistic regression probability map"
-                            view={VIEW}
-                            maxHeight={580}
-                            onPointer={onPointer}
-                            draw={(p) => {
-                                p.clear();
-                                p.image(img, VIEW);
-                                p.grid(0.25);
-                                if (norm > 1e-6) {
-                                    // Only label the level lines when they are far enough apart to read.
-                                    const labelable = (Math.log(3) / norm) * p.kx > 30;
-                                    for (const q of levels) {
-                                        const z = Math.log(q / (1 - q));
-                                        const isHalf = q === 0.5;
-                                        p.infiniteLine(w1, w2, b - z, {color: isHalf ? C.white : rgba(C.white, 0.35), width: isHalf ? 2.5 : 1.2, dash: isHalf ? undefined : [4, 5]});
-                                        // Label each level line near the right edge of the view.
-                                        const seg = p.clipLine(w1, w2, b - z);
-                                        if (seg && !isHalf && labelable) {
-                                            const [x1, y1, x2, y2] = seg;
-                                            const t = 0.85;
-                                            p.text(q.toFixed(2), x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, {color: C.text2, size: 10.5, font: "mono", align: "center", baseline: "middle"});
-                                        }
-                                    }
-                                    // w, drawn from the point of the boundary nearest the origin.
-                                    const fx = (-b * w1) / (norm * norm);
-                                    const fy = (-b * w2) / (norm * norm);
-                                    const L = Math.min(0.9, 0.18 + norm * 0.06);
-                                    p.arrow(fx, fy, fx + (w1 / norm) * L, fy + (w2 / norm) * L, {color: C.yellow, width: 3, head: 12});
+        <Rig
+            hint="Click to add points · click an added point to remove it"
+            visual={
+                <Plot
+                    label="Logistic regression probability map"
+                    view={VIEW}
+                    maxHeight={580}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        p.image(img, VIEW);
+                        p.grid(0.25);
+                        if (norm > 1e-6) {
+                            // Only label the level lines when they are far enough apart to read.
+                            const labelable = (Math.log(3) / norm) * p.kx > 30;
+                            for (const q of levels) {
+                                const z = Math.log(q / (1 - q));
+                                const isHalf = q === 0.5;
+                                p.infiniteLine(w1, w2, b - z, {color: isHalf ? C.white : rgba(C.white, 0.35), width: isHalf ? 2.5 : 1.2, dash: isHalf ? undefined : [4, 5]});
+                                // Label each level line near the right edge of the view.
+                                const seg = p.clipLine(w1, w2, b - z);
+                                if (seg && !isHalf && labelable) {
+                                    const [x1, y1, x2, y2] = seg;
+                                    const t = 0.85;
+                                    p.text(q.toFixed(2), x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, {color: C.text2, size: 10.5, font: "mono", align: "center", baseline: "middle"});
                                 }
-                                drawLabelled(p, data, {r: 4.2});
-                            }}
-                        />
-                        <Player timeline={tl} status={`gradient descent step ${k * RECORD} of ${STEPS}`} />
-                    </>
-                }
-                side={
-                    <div className="controls">
+                            }
+                            // w, drawn from the point of the boundary nearest the origin.
+                            const fx = (-b * w1) / (norm * norm);
+                            const fy = (-b * w2) / (norm * norm);
+                            const L = Math.min(0.9, 0.18 + norm * 0.06);
+                            p.arrow(fx, fy, fx + (w1 / norm) * L, fy + (w2 / norm) * L, {color: C.yellow, width: 3, head: 12});
+                        }
+                        drawLabelled(p, data, {r: 4.2});
+                    }}
+                />
+            }
+            caption={`gradient descent step ${k * RECORD} of ${STEPS}`}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Slider label="Class separation" value={sep} min={0} max={2.4} onChange={(v) => (setSep(v), tl.reset())} />
-                        <Slider label={<>L2 penalty <M>{"\\lambda"}</M></>} value={l2} min={0} max={0.05} step={0.001} onChange={(v) => (setL2(v), tl.reset())} color={C.purple} format={(v) => v.toFixed(3)} />
-                        <Stats>
-                            <Stat label="loss" value={loss.toFixed(3)} color={C.red} />
-                            <Stat label="accuracy" value={`${Math.round(acc * 100)}%`} color={C.green} />
-                            <Stat label={<M>{"\\lVert\\vw\\rVert"}</M>} value={norm.toFixed(2)} color={C.yellow} />
-                        </Stats>
-                        <div className="panel-label">
-                            <span>Loss</span>
-                        </div>
-                        <LineChart label="Cross-entropy loss over training" series={[{values: losses, color: C.red, upto: tl.t, dx: RECORD}]} height={80} yMin={0} />
-                        <div className="panel-label">
-                            <span>Weight norm</span>
-                        </div>
-                        <LineChart label="Weight norm over training" series={[{values: norms, color: C.yellow, upto: tl.t, dx: RECORD}]} height={80} yMin={0} />
                         <Segmented
                             label="Clicking adds"
                             value={brush}
@@ -273,13 +269,33 @@ function PlaneFigure(props: {sep?: number; l2?: number}) {
                                 {value: 0, label: <span className="c-orange">● class 0</span>},
                             ]}
                         />
-                        <div className="control-row">
+                        <Actions>
                             <Button onClick={() => (setSeed(randomSeed()), setExtra(new Float64Array()), tl.reset())}>New data</Button>
-                        </div>
+                        </Actions>
+                    </Group>
+                    <Group label="Model">
+                        <Slider label={<>L2 penalty <M>{"\\lambda"}</M></>} value={l2} min={0} max={0.05} step={0.001} onChange={(v) => (setL2(v), tl.reset())} color={C.purple} format={(v) => v.toFixed(3)} />
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="loss" value={loss.toFixed(3)} color={C.red} />
+                        <Stat label="accuracy" value={`${Math.round(acc * 100)}%`} color={C.green} />
+                        <Stat label={<M>{"\\lVert\\vw\\rVert"}</M>} value={norm.toFixed(2)} color={C.yellow} />
+                    </Stats>
+                    <div className="panel-label">
+                        <span>Loss</span>
                     </div>
-                }
-            />
-        </Instrument>
+                    <LineChart label="Cross-entropy loss over training" series={[{values: losses, color: C.red, upto: tl.t, dx: RECORD}]} height={80} yMin={0} />
+                    <div className="panel-label">
+                        <span>Weight norm</span>
+                    </div>
+                    <LineChart label="Weight norm over training" series={[{values: norms, color: C.yellow, upto: tl.t, dx: RECORD}]} height={80} yMin={0} />
+                </>
+            }
+        />
     );
 }
 
@@ -321,33 +337,37 @@ function Sigmoid3D(props: {sep?: number}) {
     };
 
     return (
-        <Instrument hint="Height = predicted probability of blue · drag to orbit">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot3D
-                            label="Logistic regression's sigmoid surface in 3D"
-                            initial={{pitch: 0.4, yaw: 0.9}}
-                            draw={(sc) => {
-                                drawSurface(sc, heights, NS, blend, {alpha: 0.85, wire: 4});
-                                for (let i = 0; i < data.length; i += 3) sc.point([data[i] / SPAN, data[i + 1] / SPAN, data[i + 2] > 0.5 ? 0.47 : -0.47], classColor(data[i + 2]), 3.8, {bias: 0.01});
-                            }}
-                        />
-                        <Player timeline={tl} status={`Step ${k * 6}: ‖w‖ = ${Math.hypot(w1, w2).toFixed(2)}, so the ramp gets steeper as the model grows more confident`} />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Height = predicted probability of blue · drag to orbit"
+            visual={
+                <Plot3D
+                    label="Logistic regression's sigmoid surface in 3D"
+                    initial={{pitch: 0.4, yaw: 0.9}}
+                    draw={(sc) => {
+                        drawSurface(sc, heights, NS, blend, {alpha: 0.85, wire: 4});
+                        for (let i = 0; i < data.length; i += 3) sc.point([data[i] / SPAN, data[i + 1] / SPAN, data[i + 2] > 0.5 ? 0.47 : -0.47], classColor(data[i + 2]), 3.8, {bias: 0.01});
+                    }}
+                />
+            }
+            caption={`Step ${k * 6}: ‖w‖ = ${Math.hypot(w1, w2).toFixed(2)}, so the ramp gets steeper as the model grows more confident`}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Slider label="Class separation" value={sep} min={0.2} max={2.4} onChange={setSep} />
+                    </Group>
+                    <Group label="Model">
                         <Slider label={<>L2 penalty <M>{"\\lambda"}</M></>} value={l2} min={0} max={0.05} step={0.001} onChange={setL2} color={C.purple} format={(v) => v.toFixed(3)} />
-                        <p className="note">
-                            Logistic regression is a single smooth step, <M>{"\\sigma(\\vw\\cdot\\vx + b)"}</M>, stretched over the plane. Training tilts it
-                            to face the right way, then steepens it. On separable data it keeps steepening toward a cliff unless L2 holds it back.
-                        </p>
-                    </div>
-                }
-            />
-        </Instrument>
+                    </Group>
+                </>
+            }
+            readouts={
+                <p className="note">
+                    Logistic regression is a single smooth step, <M>{"\\sigma(\\vw\\cdot\\vx + b)"}</M>, stretched over the plane. Training tilts it
+                    to face the right way, then steepens it. On separable data it keeps steepening toward a cliff unless L2 holds it back.
+                </p>
+            }
+        />
     );
 }
 

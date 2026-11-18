@@ -1,9 +1,9 @@
 import {useMemo, useState} from "react";
 import {Button, Player, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
-import {FigureLayout} from "../../components/Figure";
 import {M, MathBlock} from "../../components/Math";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {fmt, useTimeline} from "../../lib/hooks";
 import type {Painter, View} from "../../lib/painter";
 import {C, rgba} from "../../lib/theme";
@@ -97,25 +97,31 @@ function GpInstrument(props: {obs?: Obs[]; kernel?: number; length?: number; var
     };
 
     return (
-        <Instrument hint="Click to add an observation · drag to move it · shift-click to delete">
-            <FigureLayout
-                main={
-                    <Plot
-                        label="Gaussian process posterior mean, uncertainty band and samples"
-                        view={VIEW}
-                        aspect={0.62}
-                        cursor={drag !== null ? "grabbing" : "crosshair"}
-                        onPointer={onPointer}
-                        draw={(p) => {
-                            p.clear();
-                            p.grid(0.25);
-                            drawPosterior(p, post, samples, nSamples);
-                            for (const o of obs) p.point(o.x, o.y, C.white, {r: 5.5});
-                        }}
-                    />
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Click to add an observation · drag to move it · shift-click to delete"
+            visual={
+                <Plot
+                    label="Gaussian process posterior mean, uncertainty band and samples"
+                    view={VIEW}
+                    aspect={0.62}
+                    cursor={drag !== null ? "grabbing" : "crosshair"}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        p.grid(0.25);
+                        drawPosterior(p, post, samples, nSamples);
+                        for (const o of obs) p.point(o.x, o.y, C.white, {r: 5.5});
+                    }}
+                />
+            }
+            caption={
+                <p className="note note-muted">
+                    Yellow is the posterior mean, the bands are ±1σ and ±2σ, and thin lines are plausible functions drawn from the posterior.
+                </p>
+            }
+            controls={
+                <>
+                    <Group label="Kernel">
                         <Segmented label="kernel" value={kind} onChange={setKind} options={KERNELS} />
                         {kind !== 3 && (
                             <Slider label={<>length scale <M>{"\\ell"}</M></>} value={length} min={0.03} max={2} log onChange={setLength} color={C.yellow} format={(v) => v.toFixed(3)} />
@@ -123,24 +129,27 @@ function GpInstrument(props: {obs?: Obs[]; kernel?: number; length?: number; var
                         <Slider label={<>signal variance <M>{"\\sigma_f^2"}</M></>} value={variance} min={0.05} max={4} log onChange={setVariance} color={C.blue} />
                         <Slider label={<>noise <M>{"\\sigma_n^2"}</M></>} value={noise} min={1e-4} max={0.5} log onChange={setNoise} color={C.red} format={(v) => v.toExponential(1)} />
                         <Slider label="sample functions" value={nSamples} min={0} max={5} step={1} onChange={setNSamples} format={(v) => v.toFixed(0)} />
-                        <Stats>
-                            <Stat label="observations" value={obs.length} />
-                            <Stat label="log evidence" value={fmt(evidence, 2)} color={C.green} />
-                        </Stats>
-                        <div className="control-row">
+                        <Actions>
                             <Button variant="primary" onClick={fitHyper} disabled={obs.length < 2}>
                                 Fit ℓ and σ² to data
                             </Button>
+                        </Actions>
+                    </Group>
+                    <Group label="Observations">
+                        <Actions>
                             <Button onClick={() => setSeed(randomSeed())}>Resample</Button>
                             <Button onClick={() => setObs([])}>Clear</Button>
-                        </div>
-                        <p className="note note-muted">
-                            Yellow is the posterior mean, the bands are ±1σ and ±2σ, and thin lines are plausible functions drawn from the posterior.
-                        </p>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <Stats>
+                    <Stat label="observations" value={obs.length} />
+                    <Stat label="log evidence" value={fmt(evidence, 2)} color={C.green} />
+                </Stats>
+            }
+        />
     );
 }
 
@@ -199,74 +208,77 @@ function BayesOpt() {
     const gap = truth.y - found.y;
 
     return (
-        <Instrument hint="A hidden function. Each sample is expensive, so where should you look next?">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot
-                            label="Bayesian optimization: GP surrogate of a hidden function"
-                            view={{xmin: -1.05, xmax: 1.05, ymin: -1.6, ymax: 1.6}}
-                            aspect={0.5}
-                            draw={(p) => {
-                                p.clear();
-                                p.grid(0.25);
-                                drawPosterior(p, post, null, 0);
-                                if (reveal) {
-                                    const t: number[] = [];
-                                    for (let i = 0; i <= 300; i++) {
-                                        const x = -1 + (2 * i) / 300;
-                                        t.push(x, objective(x));
-                                    }
-                                    p.polyline(t, {color: C.green, width: 2, dash: [6, 5]});
-                                    p.text("★", truth.x, truth.y, {color: C.green, size: 18, align: "center", baseline: "middle"});
+        <Rig
+            hint="A hidden function. Each sample is expensive, so where should you look next?"
+            visual={
+                <>
+                    <Plot
+                        label="Bayesian optimization: GP surrogate of a hidden function"
+                        view={{xmin: -1.05, xmax: 1.05, ymin: -1.6, ymax: 1.6}}
+                        aspect={0.5}
+                        draw={(p) => {
+                            p.clear();
+                            p.grid(0.25);
+                            drawPosterior(p, post, null, 0);
+                            if (reveal) {
+                                const t: number[] = [];
+                                for (let i = 0; i <= 300; i++) {
+                                    const x = -1 + (2 * i) / 300;
+                                    t.push(x, objective(x));
                                 }
-                                p.line(next, -1.6, next, 1.6, {color: rgba(C.pink, 0.8), width: 1.5, dash: [4, 4]});
-                                obs.forEach((o, i) => p.point(o.x, o.y, i === obs.length - 1 && obs.length > 2 ? C.pink : C.white, {r: 5.5}));
-                                p.circle(found.x, found.y, 10, {stroke: C.yellow, width: 2});
-                            }}
-                        />
-                        <div className="panel-label">
-                            <span>Acquisition (upper confidence bound)</span>
-                        </div>
-                        <Plot
-                            label="Upper confidence bound acquisition function"
-                            view={{xmin: -1.05, xmax: 1.05, ymin: Math.min(...ucb) - 0.2, ymax: Math.max(...ucb) + 0.2}}
-                            height={90}
-                            draw={(p) => {
-                                p.clear();
-                                const pts: number[] = [];
-                                for (let i = 0; i < M_GRID; i++) pts.push(GRID[i], ucb[i]);
-                                p.polyline(pts, {color: C.pink, width: 2});
-                                p.line(next, p.view.ymin, next, p.view.ymax, {color: rgba(C.pink, 0.8), width: 1.5, dash: [4, 4]});
-                            }}
-                        />
-                        <Player
-                            timeline={tl}
-                            status={
-                                count >= run.length
-                                    ? `Done: ${run.length} samples. Best found ${obs.reduce((b, o) => Math.max(b, o.y), -Infinity).toFixed(3)}.`
-                                    : `Sample ${count + 1}: refit the GP, then evaluate the hidden function where μ + κσ is highest (pink line).`
+                                p.polyline(t, {color: C.green, width: 2, dash: [6, 5]});
+                                p.text("★", truth.x, truth.y, {color: C.green, size: 18, align: "center", baseline: "middle"});
                             }
-                        />
-                    </>
-                }
-                side={
-                    <div className="controls">
-                        <Slider label={<>exploration <M>{"\\kappa"}</M></>} value={kappa} min={0} max={5} onChange={setKappa} color={C.pink} />
-                        <Stats>
-                            <Stat label="samples used" value={obs.length} />
-                            <Stat label="best found" value={found.y.toFixed(3)} color={C.yellow} />
-                            <Stat label="gap to true max" value={reveal || gap < 1e-3 ? gap.toFixed(3) : "?"} color={gap < 0.01 ? C.green : undefined} />
-                        </Stats>
-                        <Toggle label="Reveal the hidden function" checked={reveal} onChange={setReveal} />
-                        <p className="note">
-                            The GP is a cheap stand-in for the expensive function. Its uncertainty says where you might be wrong. UCB samples where the
-                            optimistic guess is highest: high mean (exploit) or high uncertainty (explore). Set κ = 0 and it gets greedy.
-                        </p>
+                            p.line(next, -1.6, next, 1.6, {color: rgba(C.pink, 0.8), width: 1.5, dash: [4, 4]});
+                            obs.forEach((o, i) => p.point(o.x, o.y, i === obs.length - 1 && obs.length > 2 ? C.pink : C.white, {r: 5.5}));
+                            p.circle(found.x, found.y, 10, {stroke: C.yellow, width: 2});
+                        }}
+                    />
+                    <div className="panel-label">
+                        <span>Acquisition (upper confidence bound)</span>
                     </div>
-                }
-            />
-        </Instrument>
+                    <Plot
+                        label="Upper confidence bound acquisition function"
+                        view={{xmin: -1.05, xmax: 1.05, ymin: Math.min(...ucb) - 0.2, ymax: Math.max(...ucb) + 0.2}}
+                        height={90}
+                        draw={(p) => {
+                            p.clear();
+                            const pts: number[] = [];
+                            for (let i = 0; i < M_GRID; i++) pts.push(GRID[i], ucb[i]);
+                            p.polyline(pts, {color: C.pink, width: 2});
+                            p.line(next, p.view.ymin, next, p.view.ymax, {color: rgba(C.pink, 0.8), width: 1.5, dash: [4, 4]});
+                        }}
+                    />
+                </>
+            }
+            caption={
+                count >= run.length
+                    ? `Done: ${run.length} samples. Best found ${obs.reduce((b, o) => Math.max(b, o.y), -Infinity).toFixed(3)}.`
+                    : `Sample ${count + 1}: refit the GP, then evaluate the hidden function where μ + κσ is highest (pink line).`
+            }
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Acquisition">
+                        <Slider label={<>exploration <M>{"\\kappa"}</M></>} value={kappa} min={0} max={5} onChange={setKappa} color={C.pink} />
+                        <Toggle label="Reveal the hidden function" checked={reveal} onChange={setReveal} />
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="samples used" value={obs.length} />
+                        <Stat label="best found" value={found.y.toFixed(3)} color={C.yellow} />
+                        <Stat label="gap to true max" value={reveal || gap < 1e-3 ? gap.toFixed(3) : "?"} color={gap < 0.01 ? C.green : undefined} />
+                    </Stats>
+                    <p className="note">
+                        The GP is a cheap stand-in for the expensive function. Its uncertainty says where you might be wrong. UCB samples where the
+                        optimistic guess is highest: high mean (exploit) or high uncertainty (explore). Set κ = 0 and it gets greedy.
+                    </p>
+                </>
+            }
+        />
     );
 }
 
@@ -303,51 +315,52 @@ function GpStream() {
     }, [post]);
 
     return (
-        <Instrument hint="Observations of a hidden function arrive one at a time; the posterior updates after each">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot
-                            label="Gaussian process posterior updating as data arrives"
-                            view={VIEW}
-                            aspect={0.62}
-                            draw={(p) => {
-                                p.clear();
-                                p.grid(0.25);
-                                if (showTruth) {
-                                    const t: number[] = [];
-                                    for (let i = 0; i <= 300; i++) {
-                                        const x = VIEW.xmin + ((VIEW.xmax - VIEW.xmin) * i) / 300;
-                                        t.push(x, hidden(x));
-                                    }
-                                    p.polyline(t, {color: rgba(C.green, 0.6), width: 1.5, dash: [6, 5]});
-                                }
-                                drawPosterior(p, post, samples, 3);
-                                obs.forEach((o, i) => p.point(o.x, o.y, C.white, {r: 5.5, ring: i === obs.length - 1 && tl.t < STREAM ? C.yellow : undefined}));
-                            }}
-                        />
-                        <Player
-                            timeline={tl}
-                            status={count === 0 ? "No data yet: the prior says anything between −2 and 2 is plausible everywhere." : `${count} observation${count === 1 ? "" : "s"}: average uncertainty σ = ${meanStd.toFixed(3)}`}
-                        />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Observations of a hidden function arrive one at a time; the posterior updates after each"
+            visual={
+                <Plot
+                    label="Gaussian process posterior updating as data arrives"
+                    view={VIEW}
+                    aspect={0.62}
+                    draw={(p) => {
+                        p.clear();
+                        p.grid(0.25);
+                        if (showTruth) {
+                            const t: number[] = [];
+                            for (let i = 0; i <= 300; i++) {
+                                const x = VIEW.xmin + ((VIEW.xmax - VIEW.xmin) * i) / 300;
+                                t.push(x, hidden(x));
+                            }
+                            p.polyline(t, {color: rgba(C.green, 0.6), width: 1.5, dash: [6, 5]});
+                        }
+                        drawPosterior(p, post, samples, 3);
+                        obs.forEach((o, i) => p.point(o.x, o.y, C.white, {r: 5.5, ring: i === obs.length - 1 && tl.t < STREAM ? C.yellow : undefined}));
+                    }}
+                />
+            }
+            caption={count === 0 ? "No data yet: the prior says anything between −2 and 2 is plausible everywhere." : `${count} observation${count === 1 ? "" : "s"}: average uncertainty σ = ${meanStd.toFixed(3)}`}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Kernel">
                         <Slider label={<>length scale <M>{"\\ell"}</M></>} value={length} min={0.05} max={1.5} log onChange={setLength} color={C.yellow} format={(v) => v.toFixed(3)} />
                         <Slider label={<>noise <M>{"\\sigma_n^2"}</M></>} value={noise} min={1e-4} max={0.3} log onChange={setNoise} color={C.red} format={(v) => v.toExponential(1)} />
                         <Toggle label="Show the hidden function" checked={showTruth} onChange={setShowTruth} />
-                        <p className="note">
-                            Each new point is a constraint: the samples (thin lines) must pass near it, and the band pinches there. Between points the
-                            kernel decides how far that information spreads.
-                        </p>
-                        <div className="control-row">
+                    </Group>
+                    <Group label="Data">
+                        <Actions>
                             <Button onClick={() => setSeed(randomSeed())}>New data</Button>
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <p className="note">
+                    Each new point is a constraint: the samples (thin lines) must pass near it, and the band pinches there. Between points the
+                    kernel decides how far that information spreads.
+                </p>
+            }
+        />
     );
 }
 

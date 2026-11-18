@@ -1,9 +1,9 @@
 import {useMemo, useState} from "react";
 import {Button, Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
-import {FigureLayout} from "../../components/Figure";
 import {M, MathBlock} from "../../components/Math";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {appendRow, drawLabelled, hitPoint, removeRow, setRow} from "../../lib/data";
 import {ease, useTimeline} from "../../lib/hooks";
 import {heatImage, tint, type Painter, type View} from "../../lib/painter";
@@ -111,75 +111,64 @@ function SvmInstrument(props: {kind?: DataKind; kernel?: number; c?: number; gam
     };
 
     return (
-        <Instrument hint="Drag points · click empty space to add · shift-click a point to delete it">
-            <FigureLayout
-                main={
-                    <>
-                    <Plot
-                        label="Support vector machine decision regions and margin"
-                        view={VIEW}
-                        maxHeight={600}
-                        cursor={drag !== null ? "grabbing" : "crosshair"}
-                        onPointer={onPointer}
-                        draw={(p) => {
-                            p.clear();
-                            p.image(fit.regions, VIEW);
-                            p.grid(0.25, {axes: false});
-                            p.contours(fit.contours, (lvl) => (lvl === 1 ? {color: C.white, width: 2.5} : {color: rgba(C.white, 0.7), width: 1.4, dash: [6, 5]}));
-                            if (pairI >= 0 && f < frameCount - 1)
-                                p.line(data[3 * pairI], data[3 * pairI + 1], data[3 * pairJ], data[3 * pairJ + 1], {color: C.yellow, width: 2, dash: [4, 4]});
-                            drawLabelled(p, data, {
-                                r: 4.5,
-                                ring: (k) =>
-                                    f < frameCount - 1 && (k === pairI || k === pairJ)
-                                        ? C.yellow
-                                        : fit.alphas[k] > c * (1 - 1e-6)
-                                          ? C.red
-                                          : fit.alphas[k] > 1e-6
-                                            ? C.white
-                                            : undefined,
-                            });
-                            if (kernel === 0 && wNorm > 1e-9) {
-                                // Margin width annotation along w.
-                                p.textPx(`street width 2/‖w‖ = ${(2 / wNorm).toFixed(3)}`, 12, 22, {color: C.text2, size: 12.5});
-                            }
-                        }}
-                    />
-                    <Player
-                        timeline={tl}
-                        status={
-                            f >= frameCount - 1 ? (
-                                <span className="c-green">Converged: every point satisfies the margin conditions (KKT) up to tolerance.</span>
-                            ) : f === 0 ? (
-                                <>All α = 0: no support vectors yet.</>
-                            ) : (
-                                <>
-                                    SMO snapshot {f} of {frameCount - 1}: re-optimizing the <span className="c-yellow">yellow pair</span> of multipliers while keeping
-                                    every other α fixed.
-                                </>
-                            )
+        <Rig
+            hint="Drag points · click empty space to add · shift-click a point to delete it"
+            visual={
+                <Plot
+                    label="Support vector machine decision regions and margin"
+                    view={VIEW}
+                    maxHeight={600}
+                    cursor={drag !== null ? "grabbing" : "crosshair"}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        p.image(fit.regions, VIEW);
+                        p.grid(0.25, {axes: false});
+                        p.contours(fit.contours, (lvl) => (lvl === 1 ? {color: C.white, width: 2.5} : {color: rgba(C.white, 0.7), width: 1.4, dash: [6, 5]}));
+                        if (pairI >= 0 && f < frameCount - 1)
+                            p.line(data[3 * pairI], data[3 * pairI + 1], data[3 * pairJ], data[3 * pairJ + 1], {color: C.yellow, width: 2, dash: [4, 4]});
+                        drawLabelled(p, data, {
+                            r: 4.5,
+                            ring: (k) =>
+                                f < frameCount - 1 && (k === pairI || k === pairJ)
+                                    ? C.yellow
+                                    : fit.alphas[k] > c * (1 - 1e-6)
+                                      ? C.red
+                                      : fit.alphas[k] > 1e-6
+                                        ? C.white
+                                        : undefined,
+                        });
+                        if (kernel === 0 && wNorm > 1e-9) {
+                            // Margin width annotation along w.
+                            p.textPx(`street width 2/‖w‖ = ${(2 / wNorm).toFixed(3)}`, 12, 22, {color: C.text2, size: 12.5});
                         }
-                    />
-                    </>
+                    }}
+                />
+            }
+            caption={
+                    f >= frameCount - 1 ? (
+                        <span className="c-green">Converged: every point satisfies the margin conditions (KKT) up to tolerance.</span>
+                    ) : f === 0 ? (
+                        <>All α = 0: no support vectors yet.</>
+                    ) : (
+                        <>
+                            SMO snapshot {f} of {frameCount - 1}: re-optimizing the <span className="c-yellow">yellow pair</span> of multipliers while keeping
+                            every other α fixed.
+                        </>
+                    )
                 }
-                side={
-                    <div className="controls">
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Model">
                         <Segmented label="kernel" value={kernel} onChange={setKernel} options={KERNELS} />
                         <Slider label={<>C (penalty for violations)</>} value={c} min={0.01} max={1000} log onChange={setC} color={C.yellow} format={(v) => (v >= 10 ? v.toFixed(0) : v.toPrecision(2))} />
                         {kernel !== 0 && (
                             <Slider label={<>γ (kernel width⁻¹)</>} value={gamma} min={0.1} max={100} log onChange={setGamma} color={C.purple} format={(v) => v.toPrecision(2)} />
                         )}
                         {kernel === 2 && <Slider label="degree" value={degree} min={2} max={5} step={1} onChange={setDegree} format={(v) => v.toFixed(0)} />}
-                        <Stats>
-                            <Stat label="support vectors" value={`${svCount} / ${n}`} />
-                            <Stat label="inside the street" value={bounded} color={bounded ? C.red : C.green} />
-                            <Stat label="train accuracy" value={`${Math.round(fit.acc * 100)}%`} color={C.green} />
-                            <Stat label="snapshot" value={`${f} / ${frameCount - 1}`} />
-                        </Stats>
-                        <p className="note">
-                            <span style={{color: C.white}}>○</span> support vectors define the boundary. <span className="c-red">○</span> are at the C limit:
-                            inside the street or misclassified. Dashed lines are <M>{"f(\\vx) = \\pm 1"}</M>.
-                        </p>
+                    </Group>
+                    <Group label="Data">
                         <Segmented
                             label="Clicking adds"
                             value={brush}
@@ -189,13 +178,27 @@ function SvmInstrument(props: {kind?: DataKind; kernel?: number; c?: number; gam
                                 {value: 0, label: <span className="c-orange">● class −1</span>},
                             ]}
                         />
-                        <div className="control-row">
+                        <Actions>
                             <Button onClick={() => setData(generate(kind, randomSeed()))}>New data</Button>
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="support vectors" value={`${svCount} / ${n}`} />
+                        <Stat label="inside the street" value={bounded} color={bounded ? C.red : C.green} />
+                        <Stat label="train accuracy" value={`${Math.round(fit.acc * 100)}%`} color={C.green} />
+                        <Stat label="snapshot" value={`${f} / ${frameCount - 1}`} />
+                    </Stats>
+                    <p className="note">
+                        <span style={{color: C.white}}>○</span> support vectors define the boundary. <span className="c-red">○</span> are at the C limit:
+                        inside the street or misclassified. Dashed lines are <M>{"f(\\vx) = \\pm 1"}</M>.
+                    </p>
+                </>
+            }
+        />
     );
 }
 
@@ -269,99 +272,99 @@ function KernelTrick() {
     const planeAlpha = ease((tl.t - 0.75) / 0.25);
 
     return (
-        <Instrument hint="Watch the points lift into 3D · drag to rotate the view">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot
-                            label="Ring data lifted onto a paraboloid, separated by a plane"
-                            view={VIEW3D}
-                            aspect={0.78}
-                            cursor={last ? "grabbing" : "grab"}
-                            onPointer={onPointer}
-                            draw={(p) => {
-                                p.clear();
-                                // Floor grid.
-                                for (let i = -6; i <= 6; i++) {
-                                    const t = i * 0.2;
-                                    line3(p, [t, -1.2, 0], [t, 1.2, 0], i === 0 ? rgba(C.muted, 0.5) : rgba(C.muted, 0.18));
-                                    line3(p, [-1.2, t, 0], [1.2, t, 0], i === 0 ? rgba(C.muted, 0.5) : rgba(C.muted, 0.18));
-                                }
-                                // The bowl z = lift·(x² + y²) as rings and spokes.
-                                for (let r = 0.2; r <= 1.0001; r += 0.2) {
-                                    const pts: number[] = [];
-                                    for (let a = 0; a <= 64; a++) {
-                                        const th = (a / 64) * Math.PI * 2;
-                                        const [u, v] = project(cam, r * Math.cos(th), r * Math.sin(th), lift * r * r);
-                                        pts.push(u, v);
-                                    }
-                                    p.polyline(pts, {color: rgba(C.purple, 0.25 * lift + 0.05), width: 1});
-                                }
-                                // The decision circle on the floor.
-                                const ring: number[] = [];
-                                for (let a = 0; a <= 90; a++) {
-                                    const th = (a / 90) * Math.PI * 2;
-                                    const [u, v] = project(cam, circle.cx + circle.r * Math.cos(th), circle.cy + circle.r * Math.sin(th), 0);
-                                    ring.push(u, v);
-                                }
-                                p.polyline(ring, {color: C.white, width: 2, dash: [6, 5], alpha: planeAlpha});
-                                // Points, far to near.
-                                const order: {u: number; v: number; d: number; c: number; below: boolean}[] = [];
-                                for (let i = 0; i < data.length; i += 3) {
-                                    const x = data[i];
-                                    const y = data[i + 1];
-                                    const z = lift * (x * x + y * y);
-                                    const [u, v, d] = project(cam, x, y, z);
-                                    const below = plane.w1 * x + plane.w2 * y + plane.w3 * z - plane.rho < 0;
-                                    order.push({u, v, d, c: data[i + 2], below: below === plane.w3 > 0});
-                                }
-                                order.sort((a, b) => b.d - a.d);
-                                // Points under the plane are drawn first, so the translucent plane covers them.
-                                if (planeAlpha > 0) for (const o of order) if (o.below) p.point(o.u, o.v, o.c > 0.5 ? C.blue : C.orange, {r: 4});
-                                // Separating plane (drawn mid-way so near points sit on top of it).
-                                if (planeAlpha > 0) {
-                                    const {w1, w2, w3, rho} = plane;
-                                    const z = (x: number, y: number) => (rho - w1 * x - w2 * y) / w3;
-                                    const corners = [
-                                        [-1.2, -1.2],
-                                        [1.2, -1.2],
-                                        [1.2, 1.2],
-                                        [-1.2, 1.2],
-                                    ].map(([x, y]) => project(cam, x, y, z(x, y)));
-                                    p.polyline(
-                                        corners.flatMap((c) => [c[0], c[1]]),
-                                        {close: true, fill: C.yellow, fillAlpha: 0.13 * planeAlpha, color: rgba(C.yellow, 0.7 * planeAlpha), width: 1.5}
-                                    );
-                                    for (let i = -2; i <= 2; i++) {
-                                        const t = i * 0.6;
-                                        line3(p, [t, -1.2, z(t, -1.2)], [t, 1.2, z(t, 1.2)], rgba(C.yellow, 0.25 * planeAlpha));
-                                        line3(p, [-1.2, t, z(-1.2, t)], [1.2, t, z(1.2, t)], rgba(C.yellow, 0.25 * planeAlpha));
-                                    }
-                                }
-                                for (const o of order) if (!(planeAlpha > 0 && o.below)) p.point(o.u, o.v, o.c > 0.5 ? C.blue : C.orange, {r: 4});
-                            }}
-                        />
-                        <Player timeline={tl} status={tl.t < 0.02 ? "Flat: no line separates the rings." : tl.t > 0.98 ? "Lifted to z = x² + y²: a flat plane separates them." : "Lifting…"} />
-                    </>
-                }
-                side={
-                    <div className="controls">
-                        <p className="note">
-                            Each point <M>{"(x, y)"}</M> is mapped to <M>{"\\varphi(x, y) = (x,\\, y,\\, x^2 + y^2)"}</M>. The inner ring stays low and the
-                            outer ring rises, so a linear SVM in 3D can slide a flat plane between them.
-                        </p>
-                        <p className="note">
-                            Where that plane cuts the bowl is a <strong>circle</strong>. Projected back to the floor (dashed), it is the curved boundary an
-                            RBF or polynomial SVM draws in 2D.
-                        </p>
-                        <p className="note note-muted">
-                            Kernels make this lift implicit: the SVM only ever needs dot products <M>{"\\varphi(\\vx)\\cdot\\varphi(\\vx')"}</M>, and{" "}
-                            <M>{"K(\\vx, \\vx')"}</M> computes them directly, even for infinite-dimensional <M>{"\\varphi"}</M> like the RBF kernel's.
-                        </p>
-                    </div>
-                }
-            />
-        </Instrument>
+        <Rig
+            hint="Watch the points lift into 3D · drag to rotate the view"
+            visual={
+                <Plot
+                    label="Ring data lifted onto a paraboloid, separated by a plane"
+                    view={VIEW3D}
+                    aspect={0.78}
+                    cursor={last ? "grabbing" : "grab"}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        // Floor grid.
+                        for (let i = -6; i <= 6; i++) {
+                            const t = i * 0.2;
+                            line3(p, [t, -1.2, 0], [t, 1.2, 0], i === 0 ? rgba(C.muted, 0.5) : rgba(C.muted, 0.18));
+                            line3(p, [-1.2, t, 0], [1.2, t, 0], i === 0 ? rgba(C.muted, 0.5) : rgba(C.muted, 0.18));
+                        }
+                        // The bowl z = lift·(x² + y²) as rings and spokes.
+                        for (let r = 0.2; r <= 1.0001; r += 0.2) {
+                            const pts: number[] = [];
+                            for (let a = 0; a <= 64; a++) {
+                                const th = (a / 64) * Math.PI * 2;
+                                const [u, v] = project(cam, r * Math.cos(th), r * Math.sin(th), lift * r * r);
+                                pts.push(u, v);
+                            }
+                            p.polyline(pts, {color: rgba(C.purple, 0.25 * lift + 0.05), width: 1});
+                        }
+                        // The decision circle on the floor.
+                        const ring: number[] = [];
+                        for (let a = 0; a <= 90; a++) {
+                            const th = (a / 90) * Math.PI * 2;
+                            const [u, v] = project(cam, circle.cx + circle.r * Math.cos(th), circle.cy + circle.r * Math.sin(th), 0);
+                            ring.push(u, v);
+                        }
+                        p.polyline(ring, {color: C.white, width: 2, dash: [6, 5], alpha: planeAlpha});
+                        // Points, far to near.
+                        const order: {u: number; v: number; d: number; c: number; below: boolean}[] = [];
+                        for (let i = 0; i < data.length; i += 3) {
+                            const x = data[i];
+                            const y = data[i + 1];
+                            const z = lift * (x * x + y * y);
+                            const [u, v, d] = project(cam, x, y, z);
+                            const below = plane.w1 * x + plane.w2 * y + plane.w3 * z - plane.rho < 0;
+                            order.push({u, v, d, c: data[i + 2], below: below === plane.w3 > 0});
+                        }
+                        order.sort((a, b) => b.d - a.d);
+                        // Points under the plane are drawn first, so the translucent plane covers them.
+                        if (planeAlpha > 0) for (const o of order) if (o.below) p.point(o.u, o.v, o.c > 0.5 ? C.blue : C.orange, {r: 4});
+                        // Separating plane (drawn mid-way so near points sit on top of it).
+                        if (planeAlpha > 0) {
+                            const {w1, w2, w3, rho} = plane;
+                            const z = (x: number, y: number) => (rho - w1 * x - w2 * y) / w3;
+                            const corners = [
+                                [-1.2, -1.2],
+                                [1.2, -1.2],
+                                [1.2, 1.2],
+                                [-1.2, 1.2],
+                            ].map(([x, y]) => project(cam, x, y, z(x, y)));
+                            p.polyline(
+                                corners.flatMap((c) => [c[0], c[1]]),
+                                {close: true, fill: C.yellow, fillAlpha: 0.13 * planeAlpha, color: rgba(C.yellow, 0.7 * planeAlpha), width: 1.5}
+                            );
+                            for (let i = -2; i <= 2; i++) {
+                                const t = i * 0.6;
+                                line3(p, [t, -1.2, z(t, -1.2)], [t, 1.2, z(t, 1.2)], rgba(C.yellow, 0.25 * planeAlpha));
+                                line3(p, [-1.2, t, z(-1.2, t)], [1.2, t, z(1.2, t)], rgba(C.yellow, 0.25 * planeAlpha));
+                            }
+                        }
+                        for (const o of order) if (!(planeAlpha > 0 && o.below)) p.point(o.u, o.v, o.c > 0.5 ? C.blue : C.orange, {r: 4});
+                    }}
+                />
+            }
+            caption={tl.t < 0.02 ? "Flat: no line separates the rings." : tl.t > 0.98 ? "Lifted to z = x² + y²: a flat plane separates them." : "Lifting…"}
+            controls={
+                <Player timeline={tl} />
+            }
+            readouts={
+                <>
+                    <p className="note">
+                        Each point <M>{"(x, y)"}</M> is mapped to <M>{"\\varphi(x, y) = (x,\\, y,\\, x^2 + y^2)"}</M>. The inner ring stays low and the
+                        outer ring rises, so a linear SVM in 3D can slide a flat plane between them.
+                    </p>
+                    <p className="note">
+                        Where that plane cuts the bowl is a <strong>circle</strong>. Projected back to the floor (dashed), it is the curved boundary an
+                        RBF or polynomial SVM draws in 2D.
+                    </p>
+                    <p className="note note-muted">
+                        Kernels make this lift implicit: the SVM only ever needs dot products <M>{"\\varphi(\\vx)\\cdot\\varphi(\\vx')"}</M>, and{" "}
+                        <M>{"K(\\vx, \\vx')"}</M> computes them directly, even for infinite-dimensional <M>{"\\varphi"}</M> like the RBF kernel's.
+                    </p>
+                </>
+            }
+        />
     );
 }
 

@@ -1,10 +1,11 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import {Button, LiveControls, Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
-import {FigureLayout, Panel} from "../../components/Figure";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Panel} from "../../components/Figure";
+import {Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {Plot3D} from "../../components/Plot3D";
 import {drawSurface} from "../../lib/scene3d";
 import {probabilityColor} from "../../lib/colors";
@@ -61,61 +62,64 @@ function NeuronFigure() {
     const curveView: View = {xmin: -4, xmax: 4, ymin: A.range[0] - 0.3, ymax: A.range[1] + 0.3};
 
     return (
-        <Instrument hint="Hover the plane to trace a point through the neuron">
-            <FigureLayout
-                main={
+        <Rig
+            hint="Hover the plane to trace a point through the neuron"
+            visual={
+                <Plot
+                    label="Output of a single neuron over the input plane"
+                    view={VIEW}
+                    maxHeight={520}
+                    onPointer={(e) => setProbe(e.type === "leave" ? null : {x: e.x, y: e.y})}
+                    draw={(p) => {
+                        p.clear();
+                        p.image(img, VIEW);
+                        p.grid(0.25);
+                        p.infiniteLine(w1, w2, b, {color: C.white, width: 1.5, dash: [5, 5], alpha: 0.7});
+                        const n = Math.hypot(w1, w2);
+                        if (n > 1e-6) p.arrow(0, 0, (w1 / n) * 0.6, (w2 / n) * 0.6, {color: C.yellow, width: 3});
+                        if (probe) {
+                            p.circle(probe.x, probe.y, 5, {fill: C.white, stroke: C.canvas, width: 2});
+                        }
+                    }}
+                />
+            }
+            controls={
+                <Group label="Neuron">
+                    <Segmented value={act} onChange={setAct} options={ACTIVATIONS.map((a) => ({value: a.id, label: a.name}))} />
+                    <Slider label={<M>{"\\yel{w_1}"}</M>} value={w1} min={-5} max={5} onChange={setW1} color={C.yellow} />
+                    <Slider label={<M>{"\\yel{w_2}"}</M>} value={w2} min={-5} max={5} onChange={setW2} color={C.yellow} />
+                    <Slider label={<M>{"b"}</M>} value={b} min={-3} max={3} onChange={setB} color={C.text2} />
+                </Group>
+            }
+            readouts={
+                <>
+                    <div className="panel-label">
+                        <span>activation f(z)</span>
+                        <span className="panel-label-right">{z !== null ? `z = ${z.toFixed(2)} → ${A.f(z).toFixed(2)}` : "hover the plane"}</span>
+                    </div>
                     <Plot
-                        label="Output of a single neuron over the input plane"
-                        view={VIEW}
-                        maxHeight={520}
-                        onPointer={(e) => setProbe(e.type === "leave" ? null : {x: e.x, y: e.y})}
+                        label="The activation function"
+                        view={curveView}
+                        height={120}
                         draw={(p) => {
                             p.clear();
-                            p.image(img, VIEW);
-                            p.grid(0.25);
-                            p.infiniteLine(w1, w2, b, {color: C.white, width: 1.5, dash: [5, 5], alpha: 0.7});
-                            const n = Math.hypot(w1, w2);
-                            if (n > 1e-6) p.arrow(0, 0, (w1 / n) * 0.6, (w2 / n) * 0.6, {color: C.yellow, width: 3});
-                            if (probe) {
-                                p.circle(probe.x, probe.y, 5, {fill: C.white, stroke: C.canvas, width: 2});
+                            p.grid(1, {majorEvery: 100});
+                            const pts: number[] = [];
+                            for (let i = 0; i <= 120; i++) {
+                                const x = -4 + (8 * i) / 120;
+                                pts.push(x, A.f(x));
+                            }
+                            p.polyline(pts, {color: C.white, width: 2});
+                            if (z !== null) {
+                                const zc = Math.max(-4, Math.min(4, z));
+                                p.line(zc, curveView.ymin, zc, A.f(zc), {color: C.yellow, width: 1.5, dash: [3, 3]});
+                                p.circle(zc, Math.max(curveView.ymin, Math.min(curveView.ymax, A.f(zc))), 5, {fill: C.yellow});
                             }
                         }}
                     />
-                }
-                side={
-                    <div className="controls">
-                        <Segmented value={act} onChange={setAct} options={ACTIVATIONS.map((a) => ({value: a.id, label: a.name}))} />
-                        <Slider label={<M>{"\\yel{w_1}"}</M>} value={w1} min={-5} max={5} onChange={setW1} color={C.yellow} />
-                        <Slider label={<M>{"\\yel{w_2}"}</M>} value={w2} min={-5} max={5} onChange={setW2} color={C.yellow} />
-                        <Slider label={<M>{"b"}</M>} value={b} min={-3} max={3} onChange={setB} color={C.text2} />
-                        <div className="panel-label">
-                            <span>activation f(z)</span>
-                            <span className="panel-label-right">{z !== null ? `z = ${z.toFixed(2)} → ${A.f(z).toFixed(2)}` : "hover the plane"}</span>
-                        </div>
-                        <Plot
-                            label="The activation function"
-                            view={curveView}
-                            height={120}
-                            draw={(p) => {
-                                p.clear();
-                                p.grid(1, {majorEvery: 100});
-                                const pts: number[] = [];
-                                for (let i = 0; i <= 120; i++) {
-                                    const x = -4 + (8 * i) / 120;
-                                    pts.push(x, A.f(x));
-                                }
-                                p.polyline(pts, {color: C.white, width: 2});
-                                if (z !== null) {
-                                    const zc = Math.max(-4, Math.min(4, z));
-                                    p.line(zc, curveView.ymin, zc, A.f(zc), {color: C.yellow, width: 1.5, dash: [3, 3]});
-                                    p.circle(zc, Math.max(curveView.ymin, Math.min(curveView.ymax, A.f(zc))), 5, {fill: C.yellow});
-                                }
-                            }}
-                        />
-                    </div>
-                }
-            />
-        </Instrument>
+                </>
+            }
+        />
     );
 }
 
@@ -243,130 +247,131 @@ function PlaygroundFigure(props: {shape?: Shape; layers?: number[]; act?: number
     const status = frame ? `step ${frame.steps} · loss ${frame.loss.toFixed(3)} · accuracy ${Math.round(frame.acc * 100)}%` : "";
 
     return (
-        <Instrument hint="Training live · change the data, architecture or activation and watch it relearn">
-            <div ref={ref}>
-                <FigureLayout
-                    sideWidth={300}
-                    main={
-                        <>
-                            <div className="duo">
-                                <Panel label="Output" right={frame ? `${Math.round(frame.acc * 100)}% correct` : ""}>
-                                    <Plot
-                                        label="Network output over the plane"
-                                        view={VIEW}
-                                        draw={(p) => {
-                                            p.clear();
-                                            if (frame) p.image(frame.out, VIEW);
-                                            p.grid(0.25, {axes: false});
-                                            drawLabelled(p, data, {r: 3.6});
-                                        }}
-                                    />
-                                </Panel>
-                                <Panel label="Inside the network" right={`${sizes.slice(1, -1).reduce((a, b) => a + b, 0)} hidden neurons`}>
-                                    <Plot
-                                        label="Network diagram: each neuron shows its activation over the input plane"
-                                        view={{xmin: 0, xmax: diagram.W, ymin: 0, ymax: diagram.H}}
-                                        draw={(p) => {
-                                            p.clear();
-                                            const {pos, cell} = diagram;
-                                            // The frame can lag one tick behind an architecture change.
-                                            let expected = 0;
-                                            for (let l = 0; l < sizes.length - 1; l++) expected += sizes[l] * sizes[l + 1] + sizes[l + 1];
-                                            const fresh = frame && frame.params.length === expected;
-                                            if (frame && fresh) {
-                                                let offset = 0;
-                                                for (let l = 0; l < sizes.length - 1; l++) {
-                                                    const nin = sizes[l];
-                                                    const nout = sizes[l + 1];
-                                                    for (let o = 0; o < nout; o++)
-                                                        for (let i = 0; i < nin; i++) {
-                                                            const w = frame.params[offset + o * nin + i];
-                                                            const a = pos[l][i];
-                                                            const bpos = pos[l + 1][o];
-                                                            p.line(a.x + cell / 2, a.y, bpos.x - cell / 2, bpos.y, {
-                                                                color: w >= 0 ? C.blue : C.orange,
-                                                                width: Math.min(4, 0.3 + Math.abs(w) * 0.9),
-                                                                alpha: Math.min(0.85, 0.15 + Math.abs(w) * 0.3),
-                                                                cap: "butt",
-                                                            });
-                                                        }
-                                                    offset += nin * nout + nout;
-                                                }
-                                            }
-                                            let neuron = 0;
-                                            pos.forEach((col, l) =>
-                                                col.forEach(({x, y}, i) => {
-                                                    const img = l === 0 ? inputs[i] : fresh ? frame?.neurons[neuron++] : undefined;
-                                                    const r = {xmin: x - cell / 2, xmax: x + cell / 2, ymin: y - cell / 2, ymax: y + cell / 2};
-                                                    if (img) p.image(img, r);
-                                                    p.polyline([r.xmin, r.ymin, r.xmax, r.ymin, r.xmax, r.ymax, r.xmin, r.ymax], {close: true, color: l === sizes.length - 1 ? C.white : C.axis, width: 1});
-                                                })
-                                            );
-                                            p.text("x₁", pos[0][0].x, pos[0][0].y - cell / 2, {color: C.muted, size: 10, align: "center", dy: 12});
-                                            p.text("x₂", pos[0][1].x, pos[0][1].y - cell / 2, {color: C.muted, size: 10, align: "center", dy: 12});
-                                        }}
-                                    />
-                                </Panel>
-                            </div>
-                            <LiveControls
-                                running={running}
-                                onToggle={() => setRunning(!running)}
-                                onStep={stepOnce}
-                                stepTitle="One training step"
-                                onReset={reset}
-                                resetTitle="Start again from new random weights"
-                                status={<span className="mono">{status}</span>}
+        <div ref={ref}>
+            <Rig
+                hint="Training live · change the data, architecture or activation and watch it relearn"
+                visual={
+                    <div className="duo">
+                        <Panel label="Output" right={frame ? `${Math.round(frame.acc * 100)}% correct` : ""}>
+                            <Plot
+                                label="Network output over the plane"
+                                view={VIEW}
+                                draw={(p) => {
+                                    p.clear();
+                                    if (frame) p.image(frame.out, VIEW);
+                                    p.grid(0.25, {axes: false});
+                                    drawLabelled(p, data, {r: 3.6});
+                                }}
                             />
-                            <LineChart label="Training loss" series={[{values: lossHistory, color: C.red}]} height={90} yMin={0} xLabel="training →" />
-                        </>
-                    }
-                    side={
-                        <div className="controls">
+                        </Panel>
+                        <Panel label="Inside the network" right={`${sizes.slice(1, -1).reduce((a, b) => a + b, 0)} hidden neurons`}>
+                            <Plot
+                                label="Network diagram: each neuron shows its activation over the input plane"
+                                view={{xmin: 0, xmax: diagram.W, ymin: 0, ymax: diagram.H}}
+                                draw={(p) => {
+                                    p.clear();
+                                    const {pos, cell} = diagram;
+                                    // The frame can lag one tick behind an architecture change.
+                                    let expected = 0;
+                                    for (let l = 0; l < sizes.length - 1; l++) expected += sizes[l] * sizes[l + 1] + sizes[l + 1];
+                                    const fresh = frame && frame.params.length === expected;
+                                    if (frame && fresh) {
+                                        let offset = 0;
+                                        for (let l = 0; l < sizes.length - 1; l++) {
+                                            const nin = sizes[l];
+                                            const nout = sizes[l + 1];
+                                            for (let o = 0; o < nout; o++)
+                                                for (let i = 0; i < nin; i++) {
+                                                    const w = frame.params[offset + o * nin + i];
+                                                    const a = pos[l][i];
+                                                    const bpos = pos[l + 1][o];
+                                                    p.line(a.x + cell / 2, a.y, bpos.x - cell / 2, bpos.y, {
+                                                        color: w >= 0 ? C.blue : C.orange,
+                                                        width: Math.min(4, 0.3 + Math.abs(w) * 0.9),
+                                                        alpha: Math.min(0.85, 0.15 + Math.abs(w) * 0.3),
+                                                        cap: "butt",
+                                                    });
+                                                }
+                                            offset += nin * nout + nout;
+                                        }
+                                    }
+                                    let neuron = 0;
+                                    pos.forEach((col, l) =>
+                                        col.forEach(({x, y}, i) => {
+                                            const img = l === 0 ? inputs[i] : fresh ? frame?.neurons[neuron++] : undefined;
+                                            const r = {xmin: x - cell / 2, xmax: x + cell / 2, ymin: y - cell / 2, ymax: y + cell / 2};
+                                            if (img) p.image(img, r);
+                                            p.polyline([r.xmin, r.ymin, r.xmax, r.ymin, r.xmax, r.ymax, r.xmin, r.ymax], {close: true, color: l === sizes.length - 1 ? C.white : C.axis, width: 1});
+                                        })
+                                    );
+                                    p.text("x₁", pos[0][0].x, pos[0][0].y - cell / 2, {color: C.muted, size: 10, align: "center", dy: 12});
+                                    p.text("x₂", pos[0][1].x, pos[0][1].y - cell / 2, {color: C.muted, size: 10, align: "center", dy: 12});
+                                }}
+                            />
+                        </Panel>
+                    </div>
+                }
+                caption={<span className="mono">{status}</span>}
+                controls={
+                    <>
+                        <LiveControls
+                            running={running}
+                            onToggle={() => setRunning(!running)}
+                            onStep={stepOnce}
+                            stepTitle="One training step"
+                            onReset={reset}
+                            resetTitle="Start again from new random weights"
+                        />
+                        <Group label="Data">
                             <Segmented value={shape} onChange={setShape} options={SHAPES} />
                             <Slider label="noise" value={noise} min={0} max={0.5} onChange={setNoise} />
-                            <div className="control-row">
+                            <Actions>
                                 <Button onClick={() => setDataSeed(randomSeed())}>New sample</Button>
-                            </div>
-                            <div className="side-block">
-                                <span className="control-label">Hidden layers</span>
-                                {layers.map((n, i) => (
-                                    <div key={i} className="control-row" style={{justifyContent: "space-between"}}>
-                                        <span className="note">Layer {i + 1}</span>
-                                        <span className="control-row" style={{gap: 4}}>
-                                            <Button variant="subtle" onClick={() => setLayer(i, n - 1)} disabled={n <= 1} title="Remove a neuron">
-                                                −
-                                            </Button>
-                                            <span className="mono" style={{width: 92, textAlign: "center", whiteSpace: "nowrap"}}>
-                                                {n} neuron{n === 1 ? "" : "s"}
-                                            </span>
-                                            <Button variant="subtle" onClick={() => setLayer(i, n + 1)} disabled={n >= 8} title="Add a neuron">
-                                                +
-                                            </Button>
+                            </Actions>
+                        </Group>
+                        <Group label="Network">
+                            {layers.map((n, i) => (
+                                <div key={i} className="control-row" style={{justifyContent: "space-between"}}>
+                                    <span className="note">Layer {i + 1}</span>
+                                    <span className="control-row" style={{gap: 4}}>
+                                        <Button variant="subtle" onClick={() => setLayer(i, n - 1)} disabled={n <= 1} title="Remove a neuron">
+                                            −
+                                        </Button>
+                                        <span className="mono" style={{width: 92, textAlign: "center", whiteSpace: "nowrap"}}>
+                                            {n} neuron{n === 1 ? "" : "s"}
                                         </span>
-                                    </div>
-                                ))}
-                                <div className="control-row">
-                                    <Button onClick={() => setLayers([...layers, 4])} disabled={layers.length >= 4}>
-                                        + layer
-                                    </Button>
-                                    <Button onClick={() => setLayers(layers.slice(0, -1))} disabled={layers.length <= 1}>
-                                        − layer
-                                    </Button>
+                                        <Button variant="subtle" onClick={() => setLayer(i, n + 1)} disabled={n >= 8} title="Add a neuron">
+                                            +
+                                        </Button>
+                                    </span>
                                 </div>
+                            ))}
+                            <div className="control-row">
+                                <Button onClick={() => setLayers([...layers, 4])} disabled={layers.length >= 4}>
+                                    + layer
+                                </Button>
+                                <Button onClick={() => setLayers(layers.slice(0, -1))} disabled={layers.length <= 1}>
+                                    − layer
+                                </Button>
                             </div>
                             <Segmented label="activation" value={act} onChange={setAct} options={ACTIVATIONS.map((a) => ({value: a.id, label: a.name}))} />
                             <Slider label="learning rate (Adam)" value={lr} min={0.001} max={0.2} log onChange={setLr} color={C.yellow} format={(v) => v.toFixed(3)} />
-                            {frame && (
-                                <Stats>
-                                    <Stat label="parameters" value={frame.params.length} />
-                                    <Stat label="loss" value={frame.loss.toFixed(3)} color={C.red} />
-                                </Stats>
-                            )}
-                        </div>
-                    }
-                />
-            </div>
-        </Instrument>
+                        </Group>
+                    </>
+                }
+                readouts={
+                    <>
+                        {frame && (
+                            <Stats>
+                                <Stat label="parameters" value={frame.params.length} />
+                                <Stat label="loss" value={frame.loss.toFixed(3)} color={C.red} />
+                            </Stats>
+                        )}
+                        <LineChart label="Training loss" series={[{values: lossHistory, color: C.red}]} height={90} yMin={0} xLabel="training →" />
+                    </>
+                }
+            />
+        </div>
     );
 }
 
@@ -576,55 +581,54 @@ function WarpFigure(props: {shape?: "moons" | "xor" | "circles"}) {
     const layerName = t < 0.02 ? "input space" : t > HIDDEN - 0.02 ? `after hidden layer ${HIDDEN}: a straight line now separates the classes` : `between layer ${l0} and ${l0 + 1}`;
 
     return (
-        <Instrument hint="Play to morph the plane through each layer">
-            <div ref={ref}>
-                <FigureLayout
-                    main={
-                        <>
-                            <Plot
-                                label="Data and grid lines transformed by each hidden layer"
-                                view={WARP_VIEW}
-                                maxHeight={560}
-                                draw={(p) => {
-                                    p.clear();
-                                    if (!warp) return;
-                                    if (t < 1) p.image(warp.region, WARP_VIEW, true, 1 - ease(t));
-                                    const fin = ease((t - (HIDDEN - 0.6)) / 0.6);
-                                    if (fin > 0) {
-                                        const [a, b, c] = warp.final;
-                                        p.halfPlane(a, b, c, C.blue, 0.13 * fin);
-                                        p.halfPlane(-a, -b, -c, C.orange, 0.1 * fin);
-                                    }
-                                    // Warped grid.
-                                    for (let line = 0; line < LINES * 2; line++) {
-                                        const pts: number[] = [];
-                                        for (let k = 0; k < SAMPLES; k++) {
-                                            const [x, y] = at(warp.lines, (line * SAMPLES + k) * 2);
-                                            pts.push(x, y);
-                                        }
-                                        const mid = line % LINES === (LINES - 1) / 2;
-                                        p.polyline(pts, {color: mid ? rgba(C.white, 0.45) : rgba(C.purple, 0.32), width: mid ? 1.4 : 1});
-                                    }
-                                    // Decision boundary, carried along.
-                                    const bd = warp.boundary;
-                                    for (let i = 0; i < bd[0].length; i += 4) {
-                                        const [x1, y1] = at(bd, i);
-                                        const [x2, y2] = at(bd, i + 2);
-                                        p.line(x1, y1, x2, y2, {color: C.white, width: 2.5});
-                                    }
-                                    const pts = warp.points;
-                                    for (let i = 0; i < data.length / 3; i++) {
-                                        const [x, y] = at(pts, 2 * i);
-                                        p.point(x, y, data[3 * i + 2] > 0.5 ? C.blue : C.orange, {r: 3.8});
-                                    }
-                                    p.textPx(layerName, 12, 22, {color: C.text2, size: 12.5});
-                                }}
-                            />
-                            <Player timeline={tl} />
-                        </>
-                    }
-                    side={
-                        <div className="controls">
+        <div ref={ref}>
+            <Rig
+                hint="Play to morph the plane through each layer"
+                visual={
+                    <Plot
+                        label="Data and grid lines transformed by each hidden layer"
+                        view={WARP_VIEW}
+                        maxHeight={560}
+                        draw={(p) => {
+                            p.clear();
+                            if (!warp) return;
+                            if (t < 1) p.image(warp.region, WARP_VIEW, true, 1 - ease(t));
+                            const fin = ease((t - (HIDDEN - 0.6)) / 0.6);
+                            if (fin > 0) {
+                                const [a, b, c] = warp.final;
+                                p.halfPlane(a, b, c, C.blue, 0.13 * fin);
+                                p.halfPlane(-a, -b, -c, C.orange, 0.1 * fin);
+                            }
+                            // Warped grid.
+                            for (let line = 0; line < LINES * 2; line++) {
+                                const pts: number[] = [];
+                                for (let k = 0; k < SAMPLES; k++) {
+                                    const [x, y] = at(warp.lines, (line * SAMPLES + k) * 2);
+                                    pts.push(x, y);
+                                }
+                                const mid = line % LINES === (LINES - 1) / 2;
+                                p.polyline(pts, {color: mid ? rgba(C.white, 0.45) : rgba(C.purple, 0.32), width: mid ? 1.4 : 1});
+                            }
+                            // Decision boundary, carried along.
+                            const bd = warp.boundary;
+                            for (let i = 0; i < bd[0].length; i += 4) {
+                                const [x1, y1] = at(bd, i);
+                                const [x2, y2] = at(bd, i + 2);
+                                p.line(x1, y1, x2, y2, {color: C.white, width: 2.5});
+                            }
+                            const pts = warp.points;
+                            for (let i = 0; i < data.length / 3; i++) {
+                                const [x, y] = at(pts, 2 * i);
+                                p.point(x, y, data[3 * i + 2] > 0.5 ? C.blue : C.orange, {r: 3.8});
+                            }
+                            p.textPx(layerName, 12, 22, {color: C.text2, size: 12.5});
+                        }}
+                    />
+                }
+                controls={
+                    <>
+                        <Player timeline={tl} />
+                        <Group label="Data">
                             <Segmented
                                 value={shape}
                                 onChange={(v) => (setShape(v), tl.reset())}
@@ -634,28 +638,34 @@ function WarpFigure(props: {shape?: "moons" | "xor" | "circles"}) {
                                     {value: "circles", label: "Circles"},
                                 ]}
                             />
-                            <p className="note">
-                                Network: <span className="mono">2 → 2 → 2 → 2 → 1</span>, tanh. Every hidden layer has just two neurons, so each intermediate
-                                representation is itself a plane we can draw.
-                            </p>
-                            {warp && (
-                                <Stats>
-                                    <Stat label="training step" value={warp.steps} />
-                                    <Stat label="accuracy" value={`${Math.round(warp.acc * 100)}%`} color={warp.acc > 0.97 ? C.green : C.yellow} />
-                                </Stats>
-                            )}
-                            <div className="control-row">
+                        </Group>
+                        <Group label="Network">
+                            <Actions>
                                 <Button onClick={() => (setSeed(randomSeed()), tl.reset())}>Retrain from new weights</Button>
-                            </div>
-                            <p className="note note-muted">
-                                Narrow networks often get stuck in a poor solution, so twelve are trained side by side and the clearest one is kept. On{" "}
-                                <em>circles</em> even the best will struggle, for the reason explained below.
-                            </p>
-                        </div>
-                    }
-                />
-            </div>
-        </Instrument>
+                            </Actions>
+                        </Group>
+                    </>
+                }
+                readouts={
+                    <>
+                        {warp && (
+                            <Stats>
+                                <Stat label="training step" value={warp.steps} />
+                                <Stat label="accuracy" value={`${Math.round(warp.acc * 100)}%`} color={warp.acc > 0.97 ? C.green : C.yellow} />
+                            </Stats>
+                        )}
+                        <p className="note">
+                            Network: <span className="mono">2 → 2 → 2 → 2 → 1</span>, tanh. Every hidden layer has just two neurons, so each intermediate
+                            representation is itself a plane we can draw.
+                        </p>
+                        <p className="note note-muted">
+                            Narrow networks often get stuck in a poor solution, so twelve are trained side by side and the clearest one is kept. On{" "}
+                            <em>circles</em> even the best will struggle, for the reason explained below.
+                        </p>
+                    </>
+                }
+            />
+        </div>
     );
 }
 
@@ -713,49 +723,50 @@ function Surface3D(props: {shape?: Shape; layers?: number[]}) {
     }, visible);
 
     return (
-        <Instrument hint="Height = the network's probability of blue · blue points sit at height 1, orange at 0 · drag to orbit">
-            <div ref={ref}>
-                <FigureLayout
-                    main={
-                        <Plot3D
-                            label="Neural network output as a 3D surface"
-                            initial={{pitch: 0.45, yaw: 0.6}}
-                            draw={(sc) => {
-                                if (!frame) return;
-                                const heights = frame.heights.map((v) => v * 0.9 - 0.45);
-                                drawSurface(sc, heights, NS, (z) => probRgb((z + 0.45) / 0.9), {alpha: 0.88, wire: 5});
-                                for (let i = 0; i < data.length; i += 3) {
-                                    const c = data[i + 2];
-                                    sc.point([data[i] / SPAN, data[i + 1] / SPAN, c > 0.5 ? 0.47 : -0.47], classColor(c), 3.6, {bias: 0.01});
-                                }
-                            }}
-                        />
-                    }
-                    side={
-                        <div className="controls">
-                            <LiveControls
-                                running={running}
-                                onToggle={() => setRunning(!running)}
-                                onStep={() => (pending.current += 1)}
-                                stepTitle="One training step"
-                                onReset={() => setSeed(randomSeed())}
-                                resetTitle="Start again from new random weights"
-                            />
-                            <Stats>
-                                <Stat label="training step" value={frame?.steps ?? 0} />
-                                <Stat label="loss" value={frame ? frame.loss.toFixed(3) : "—"} color={C.red} />
-                            </Stats>
-                            <p className="note">
-                                The network's output is a single sheet over the plane. Training pushes it up under blue points and down under orange
-                                ones, and with enough neurons it can fold into whatever shape that takes. Where the sheet crosses half height is the decision
-                                boundary.
-                            </p>
-                            <p className="note note-muted">Architecture 2 → {layers.join(" → ")} → 1, tanh, trained with Adam.</p>
-                        </div>
-                    }
-                />
-            </div>
-        </Instrument>
+        <div ref={ref}>
+            <Rig
+                hint="Height = the network's probability of blue · blue points sit at height 1, orange at 0 · drag to orbit"
+                visual={
+                    <Plot3D
+                        label="Neural network output as a 3D surface"
+                        initial={{pitch: 0.45, yaw: 0.6}}
+                        draw={(sc) => {
+                            if (!frame) return;
+                            const heights = frame.heights.map((v) => v * 0.9 - 0.45);
+                            drawSurface(sc, heights, NS, (z) => probRgb((z + 0.45) / 0.9), {alpha: 0.88, wire: 5});
+                            for (let i = 0; i < data.length; i += 3) {
+                                const c = data[i + 2];
+                                sc.point([data[i] / SPAN, data[i + 1] / SPAN, c > 0.5 ? 0.47 : -0.47], classColor(c), 3.6, {bias: 0.01});
+                            }
+                        }}
+                    />
+                }
+                controls={
+                    <LiveControls
+                        running={running}
+                        onToggle={() => setRunning(!running)}
+                        onStep={() => (pending.current += 1)}
+                        stepTitle="One training step"
+                        onReset={() => setSeed(randomSeed())}
+                        resetTitle="Start again from new random weights"
+                    />
+                }
+                readouts={
+                    <>
+                        <Stats>
+                            <Stat label="training step" value={frame?.steps ?? 0} />
+                            <Stat label="loss" value={frame ? frame.loss.toFixed(3) : "—"} color={C.red} />
+                        </Stats>
+                        <p className="note">
+                            The network's output is a single sheet over the plane. Training pushes it up under blue points and down under orange
+                            ones, and with enough neurons it can fold into whatever shape that takes. Where the sheet crosses half height is the decision
+                            boundary.
+                        </p>
+                        <p className="note note-muted">Architecture 2 → {layers.join(" → ")} → 1, tanh, trained with Adam.</p>
+                    </>
+                }
+            />
+        </div>
     );
 }
 

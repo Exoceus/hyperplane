@@ -1,9 +1,10 @@
 import {useMemo, useState} from "react";
 import {Button, Legend, Meter, Player, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
-import {FigureLayout, Panel} from "../../components/Figure";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Panel} from "../../components/Figure";
+import {Playground, type Scenario} from "../../components/Playground";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {appendRow, drawLabelled, hitPoint, removeRow} from "../../lib/data";
 import {ease, fmt, lerp, useTimeline} from "../../lib/hooks";
 import type {Painter, View} from "../../lib/painter";
@@ -77,71 +78,78 @@ function AnatomyFigure() {
     const hoverTip = hover && Math.hypot((hover.x - w.w1) * 100, (hover.y - w.w2) * 100) < 16;
 
     return (
-        <Instrument hint="Drag the yellow arrow or the white line">
-            <FigureLayout
-                main={
-                    <Plot
-                        label="Linear classifier with a draggable weight vector"
-                        view={VIEW}
-                        maxHeight={560}
-                        cursor={drag ? "grabbing" : hoverTip ? "grab" : "crosshair"}
-                        onPointer={onPointer}
-                        draw={(p) => {
-                            p.clear();
-                            drawClassifier(p, w.w1, w.w2, b);
-                            p.grid(0.25);
-                            // Offset of the line from the origin, along w.
-                            const d = -b / norm;
-                            const fx = (d * w.w1) / norm;
-                            const fy = (d * w.w2) / norm;
-                            p.line(0, 0, fx, fy, {color: C.muted, dash: [4, 4], width: 1.5});
-                            if (Math.abs(d) > 0.08)
-                                p.text(`−b/‖w‖ = ${d.toFixed(2)}`, fx / 2 - (0.12 * w.w2) / norm, fy / 2 + (0.12 * w.w1) / norm, {color: C.muted, size: 11.5, align: "center", font: "mono"});
-                            drawLabelled(p, data, {
-                                ring: (k) => (isMistake(w.w1, w.w2, b, data[3 * k], data[3 * k + 1], data[3 * k + 2]) ? C.red : undefined),
-                            });
-                            // Hover probe: perpendicular to the boundary and the score.
-                            if (hover && !drag) {
-                                const s = w.w1 * hover.x + w.w2 * hover.y + b;
-                                const t = s / (norm * norm);
-                                const px = hover.x - t * w.w1;
-                                const py = hover.y - t * w.w2;
-                                p.line(hover.x, hover.y, px, py, {color: s > 0 ? C.blue : C.orange, width: 1.5, dash: [3, 3]});
-                                p.circle(hover.x, hover.y, 3, {fill: C.white});
-                                p.text(`s = ${s.toFixed(2)}`, hover.x, hover.y, {color: s > 0 ? C.blue : C.orange, dx: 10, dy: -8, font: "mono", size: 12});
-                            }
-                            p.arrow(0, 0, w.w1, w.w2, {color: C.yellow, width: 3.5, head: 14});
-                            p.circle(w.w1, w.w2, 7, {stroke: C.yellow, width: 2, alpha: 0.5});
-                            p.text("w", w.w1, w.w2, {color: C.yellow, size: 17, font: "serif", weight: 600, dx: 10, dy: 4});
-                        }}
-                    />
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Drag the yellow arrow or the white line"
+            visual={
+                <Plot
+                    label="Linear classifier with a draggable weight vector"
+                    view={VIEW}
+                    maxHeight={560}
+                    cursor={drag ? "grabbing" : hoverTip ? "grab" : "crosshair"}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        drawClassifier(p, w.w1, w.w2, b);
+                        p.grid(0.25);
+                        // Offset of the line from the origin, along w.
+                        const d = -b / norm;
+                        const fx = (d * w.w1) / norm;
+                        const fy = (d * w.w2) / norm;
+                        p.line(0, 0, fx, fy, {color: C.muted, dash: [4, 4], width: 1.5});
+                        if (Math.abs(d) > 0.08)
+                            p.text(`−b/‖w‖ = ${d.toFixed(2)}`, fx / 2 - (0.12 * w.w2) / norm, fy / 2 + (0.12 * w.w1) / norm, {color: C.muted, size: 11.5, align: "center", font: "mono"});
+                        drawLabelled(p, data, {
+                            ring: (k) => (isMistake(w.w1, w.w2, b, data[3 * k], data[3 * k + 1], data[3 * k + 2]) ? C.red : undefined),
+                        });
+                        // Hover probe: perpendicular to the boundary and the score.
+                        if (hover && !drag) {
+                            const s = w.w1 * hover.x + w.w2 * hover.y + b;
+                            const t = s / (norm * norm);
+                            const px = hover.x - t * w.w1;
+                            const py = hover.y - t * w.w2;
+                            p.line(hover.x, hover.y, px, py, {color: s > 0 ? C.blue : C.orange, width: 1.5, dash: [3, 3]});
+                            p.circle(hover.x, hover.y, 3, {fill: C.white});
+                            p.text(`s = ${s.toFixed(2)}`, hover.x, hover.y, {color: s > 0 ? C.blue : C.orange, dx: 10, dy: -8, font: "mono", size: 12});
+                        }
+                        p.arrow(0, 0, w.w1, w.w2, {color: C.yellow, width: 3.5, head: 14});
+                        p.circle(w.w1, w.w2, 7, {stroke: C.yellow, width: 2, alpha: 0.5});
+                        p.text("w", w.w1, w.w2, {color: C.yellow, size: 17, font: "serif", weight: 600, dx: 10, dy: 4});
+                    }}
+                />
+            }
+            controls={
+                <>
+                    <Group label="Classifier">
                         <Slider label={<M>{"\\yel{w_1}"}</M>} value={w.w1} min={-1.15} max={1.15} onChange={(v) => setW({...w, w1: v})} color={C.yellow} />
                         <Slider label={<M>{"\\yel{w_2}"}</M>} value={w.w2} min={-1.15} max={1.15} onChange={(v) => setW({...w, w2: v})} color={C.yellow} />
                         <Slider label={<M>{"b"}</M>} value={b} min={-1.5} max={1.5} onChange={setB} color={C.text2} />
-                        <Stats>
-                            <Stat label="Mistakes" value={`${mistakes} / ${data.length / 3}`} color={mistakes ? C.red : C.green} />
-                            <Stat label={<M>{"\\lVert\\vw\\rVert"}</M>} value={norm.toFixed(2)} color={C.yellow} />
-                        </Stats>
-                        <Legend
-                            items={[
-                                {color: C.blue, label: "class +1"},
-                                {color: C.orange, label: "class −1"},
-                                {color: C.red, label: "misclassified", shape: "dash"},
-                            ]}
-                        />
-                        <p className="note">
-                            Hover anywhere to read the score <M>{"s(\\vx)"}</M>. Its sign is the prediction; its size grows with the distance to the line.
-                        </p>
-                        <div className="control-row">
+                    </Group>
+                    <Group label="Data">
+                        <Actions>
                             <Button onClick={() => setSeed(randomSeed())}>New data</Button>
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="Mistakes" value={`${mistakes} / ${data.length / 3}`} color={mistakes ? C.red : C.green} />
+                        <Stat label={<M>{"\\lVert\\vw\\rVert"}</M>} value={norm.toFixed(2)} color={C.yellow} />
+                    </Stats>
+                    <Legend
+                        items={[
+                            {color: C.blue, label: "class +1"},
+                            {color: C.orange, label: "class −1"},
+                            {color: C.red, label: "misclassified", shape: "dash"},
+                        ]}
+                    />
+                    <p className="note">
+                        Hover anywhere to read the score <M>{"s(\\vx)"}</M>. Its sign is the prediction; its size grows with the distance to the line.
+                    </p>
+                </>
+            }
+        />
     );
 }
 
@@ -245,94 +253,103 @@ function UpdatesFigure({seed: seed0 = 3}: {seed?: number}) {
     const pointRing = (k: number) => (k === active && f > 0 ? C.white : isMistake(cur.w1, cur.w2, 0, data[3 * k], data[3 * k + 1], data[3 * k + 2]) ? C.red : undefined);
 
     return (
-        <Instrument hint="Drag the starting 𝐰₀ (at step 0) in weight space">
-            <div className="duo">
-                <Panel label="Data space" right={`${mistakesNow} mistakes`}>
-                    <Plot
-                        label="Data space: points and the perceptron boundary"
-                        view={VIEW}
-                        draw={(p) => {
-                            p.clear();
-                            drawClassifier(p, cur.w1, cur.w2, 0);
-                            p.grid(0.25);
-                            drawLabelled(p, data, {ring: pointRing});
-                            if (active >= 0 && f > 0) {
-                                p.arrow(0, 0, yv * ax, yv * ay, {color: classColor(yv > 0 ? 1 : 0), width: 2.5, alpha: phaseA, dash: yv < 0 ? [6, 5] : undefined});
-                                p.text(yv > 0 ? "+x" : "−x", yv * ax, yv * ay, {color: classColor(yv > 0 ? 1 : 0), dx: 8, dy: -8, size: 14, font: "serif"});
-                            }
-                            if (curNorm > 1e-9) {
-                                const s = 0.75 / curNorm;
-                                p.arrow(0, 0, cur.w1 * s, cur.w2 * s, {color: C.yellow, width: 3.5, head: 13});
-                                p.text("direction of w", cur.w1 * s, cur.w2 * s, {color: C.yellow, size: 12, dx: 8, dy: 14});
-                            }
-                        }}
-                    />
-                </Panel>
-                <Panel label="Weight space" right={`w = (${cur.w1.toFixed(2)}, ${cur.w2.toFixed(2)})`}>
-                    <Plot
-                        label="Weight space: the perceptron's weight vector hopping into the feasible region"
-                        view={wView}
-                        cursor={draggingW0 ? "grabbing" : tl.t === 0 ? "grab" : "default"}
-                        onPointer={onWeightPointer}
-                        draw={(p) => {
-                            p.clear();
-                            // Feasible wedge.
-                            const R = (wView.xmax - wView.xmin) * 2;
-                            if (wedge.hi > wedge.lo) {
-                                const pts = [0, 0];
-                                for (let i = 0; i <= 40; i++) {
-                                    const a = wedge.lo + ((wedge.hi - wedge.lo) * i) / 40;
-                                    pts.push(R * Math.cos(a), R * Math.sin(a));
+        <Rig
+            hint="Drag the starting 𝐰₀ (at step 0) in weight space"
+            visual={
+                <div className="duo">
+                    <Panel label="Data space" right={`${mistakesNow} mistakes`}>
+                        <Plot
+                            label="Data space: points and the perceptron boundary"
+                            view={VIEW}
+                            draw={(p) => {
+                                p.clear();
+                                drawClassifier(p, cur.w1, cur.w2, 0);
+                                p.grid(0.25);
+                                drawLabelled(p, data, {ring: pointRing});
+                                if (active >= 0 && f > 0) {
+                                    p.arrow(0, 0, yv * ax, yv * ay, {color: classColor(yv > 0 ? 1 : 0), width: 2.5, alpha: phaseA, dash: yv < 0 ? [6, 5] : undefined});
+                                    p.text(yv > 0 ? "+x" : "−x", yv * ax, yv * ay, {color: classColor(yv > 0 ? 1 : 0), dx: 8, dy: -8, size: 14, font: "serif"});
                                 }
-                                p.polyline(pts, {close: true, fill: C.green, fillAlpha: 0.13, color: "none"});
-                            }
-                            p.grid(wView.xmax > 3 ? 1 : 0.5, {majorEvery: 2});
-                            // One constraint line per point: w·x = 0.
-                            for (let i = 0, k = 0; i < data.length; i += 3, k++) {
-                                const on = k === active && f > 0;
-                                p.infiniteLine(data[i], data[i + 1], 0, {color: on ? C.white : rgba(C.muted, 0.35), width: on ? 1.8 : 1, dash: on ? undefined : [2, 4]});
-                            }
-                            // Trajectory so far.
-                            const trail: number[] = [];
-                            for (let k = 0; k < u; k++) trail.push(H[k * STRIDE], H[k * STRIDE + 1]);
-                            trail.push(cur.w1, cur.w2);
-                            p.polyline(trail, {color: rgba(C.yellow, 0.45), width: 1.5});
-                            for (let k = 0; k < u; k++) p.circle(H[k * STRIDE], H[k * STRIDE + 1], 3, {fill: rgba(C.yellow, 0.6)});
-                            // Tip-to-tail: w_old + y·x.
-                            if (active >= 0 && f > 0) {
-                                p.arrow(from.w1, from.w2, from.w1 + yv * ax * phaseA, from.w2 + yv * ay * phaseA, {color: classColor(yv > 0 ? 1 : 0), width: 2.5});
-                            }
-                            p.arrow(0, 0, cur.w1, cur.w2, {color: C.yellow, width: 3.5, head: 13});
-                            p.circle(H[0], H[1], 6, {stroke: C.yellow, width: 1.5, dash: [3, 3]});
-                            p.text("𝐰₀", H[0], H[1], {color: C.yellow, dx: 9, dy: 14, size: 13});
-                        }}
-                    />
-                </Panel>
-            </div>
-            <div style={{marginTop: 14, display: "grid", gap: 10}}>
-                <Player timeline={tl} />
-                <div className="status-line">{status}</div>
-                <div className="control-row">
-                    <Button onClick={() => (setSeed(randomSeed()), setW0(null), tl.reset())}>New data</Button>
-                    <Button
-                        onClick={() => {
-                            const a = Math.random() * Math.PI * 2;
-                            setW0({w1: 1.1 * Math.cos(a), w2: 1.1 * Math.sin(a)});
-                            tl.reset();
-                        }}
-                    >
-                        Random start
-                    </Button>
-                    <Legend
-                        items={[
-                            {color: C.yellow, label: "weight vector 𝐰", shape: "line"},
-                            {color: C.green, label: "feasible weights", shape: "square"},
-                            {color: C.muted, label: "𝐰·𝐱ᵢ = 0 for each point", shape: "dash"},
-                        ]}
-                    />
+                                if (curNorm > 1e-9) {
+                                    const s = 0.75 / curNorm;
+                                    p.arrow(0, 0, cur.w1 * s, cur.w2 * s, {color: C.yellow, width: 3.5, head: 13});
+                                    p.text("direction of w", cur.w1 * s, cur.w2 * s, {color: C.yellow, size: 12, dx: 8, dy: 14});
+                                }
+                            }}
+                        />
+                    </Panel>
+                    <Panel label="Weight space" right={`w = (${cur.w1.toFixed(2)}, ${cur.w2.toFixed(2)})`}>
+                        <Plot
+                            label="Weight space: the perceptron's weight vector hopping into the feasible region"
+                            view={wView}
+                            cursor={draggingW0 ? "grabbing" : tl.t === 0 ? "grab" : "default"}
+                            onPointer={onWeightPointer}
+                            draw={(p) => {
+                                p.clear();
+                                // Feasible wedge.
+                                const R = (wView.xmax - wView.xmin) * 2;
+                                if (wedge.hi > wedge.lo) {
+                                    const pts = [0, 0];
+                                    for (let i = 0; i <= 40; i++) {
+                                        const a = wedge.lo + ((wedge.hi - wedge.lo) * i) / 40;
+                                        pts.push(R * Math.cos(a), R * Math.sin(a));
+                                    }
+                                    p.polyline(pts, {close: true, fill: C.green, fillAlpha: 0.13, color: "none"});
+                                }
+                                p.grid(wView.xmax > 3 ? 1 : 0.5, {majorEvery: 2});
+                                // One constraint line per point: w·x = 0.
+                                for (let i = 0, k = 0; i < data.length; i += 3, k++) {
+                                    const on = k === active && f > 0;
+                                    p.infiniteLine(data[i], data[i + 1], 0, {color: on ? C.white : rgba(C.muted, 0.35), width: on ? 1.8 : 1, dash: on ? undefined : [2, 4]});
+                                }
+                                // Trajectory so far.
+                                const trail: number[] = [];
+                                for (let k = 0; k < u; k++) trail.push(H[k * STRIDE], H[k * STRIDE + 1]);
+                                trail.push(cur.w1, cur.w2);
+                                p.polyline(trail, {color: rgba(C.yellow, 0.45), width: 1.5});
+                                for (let k = 0; k < u; k++) p.circle(H[k * STRIDE], H[k * STRIDE + 1], 3, {fill: rgba(C.yellow, 0.6)});
+                                // Tip-to-tail: w_old + y·x.
+                                if (active >= 0 && f > 0) {
+                                    p.arrow(from.w1, from.w2, from.w1 + yv * ax * phaseA, from.w2 + yv * ay * phaseA, {color: classColor(yv > 0 ? 1 : 0), width: 2.5});
+                                }
+                                p.arrow(0, 0, cur.w1, cur.w2, {color: C.yellow, width: 3.5, head: 13});
+                                p.circle(H[0], H[1], 6, {stroke: C.yellow, width: 1.5, dash: [3, 3]});
+                                p.text("𝐰₀", H[0], H[1], {color: C.yellow, dx: 9, dy: 14, size: 13});
+                            }}
+                        />
+                    </Panel>
                 </div>
-            </div>
-        </Instrument>
+            }
+            caption={status}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Start">
+                        <Actions>
+                            <Button onClick={() => (setSeed(randomSeed()), setW0(null), tl.reset())}>New data</Button>
+                            <Button
+                                onClick={() => {
+                                    const a = Math.random() * Math.PI * 2;
+                                    setW0({w1: 1.1 * Math.cos(a), w2: 1.1 * Math.sin(a)});
+                                    tl.reset();
+                                }}
+                            >
+                                Random start
+                            </Button>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <Legend
+                    items={[
+                        {color: C.yellow, label: "weight vector 𝐰", shape: "line"},
+                        {color: C.green, label: "feasible weights", shape: "square"},
+                        {color: C.muted, label: "𝐰·𝐱ᵢ = 0 for each point", shape: "dash"},
+                    ]}
+                />
+            }
+        />
     );
 }
 
@@ -408,64 +425,61 @@ function ConvergenceFigure(props: {n?: number; margin?: number; noise?: number; 
     const done = tl.atEnd && K > 0;
 
     return (
-        <Instrument hint="Click to add points · click an added point to remove it">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot
-                            label="Perceptron with bias training on generated data"
-                            view={VIEW}
-                            maxHeight={560}
-                            onPointer={onPointer}
-                            draw={(p) => {
-                                p.clear();
-                                drawClassifier(p, cur.w1, cur.w2, cur.b);
-                                p.grid(0.25);
-                                if (showTruth && noise === 0) {
-                                    const {w1, w2, b} = base.truth;
-                                    p.infiniteLine(w1, w2, b, {color: C.green, width: 1.5, dash: [6, 6], alpha: 0.8});
-                                    p.infiniteLine(w1, w2, b - margin, {color: C.green, width: 1, dash: [2, 5], alpha: 0.5});
-                                    p.infiniteLine(w1, w2, b + margin, {color: C.green, width: 1, dash: [2, 5], alpha: 0.5});
-                                }
-                                drawLabelled(p, data, {
-                                    ring: (k) =>
-                                        u === 0
-                                            ? undefined
-                                            : k === active && f > 0 && f < 1
-                                              ? C.white
-                                              : isMistake(cur.w1, cur.w2, cur.b, data[3 * k], data[3 * k + 1], data[3 * k + 2])
-                                                ? C.red
-                                                : undefined,
-                                });
-                                if (u === 0) p.textPx("𝐰 = 0: no boundary yet", p.width / 2, 26, {align: "center", color: C.text2, size: 13});
-                            }}
-                        />
-                        <Player
-                            timeline={tl}
-                            status={
-                                done ? (
-                                    run.converged ? (
-                                        <span className="c-green">
-                                            Converged: {K} updates over {run.epochs} {run.epochs === 1 ? "pass" : "passes"} through the data.
-                                        </span>
-                                    ) : (
-                                        <span className="c-red">
-                                            Never settled. After {run.epochs} passes there was still a mistake in every pass, because no line separates these points.
-                                        </span>
-                                    )
-                                ) : u === 0 ? (
-                                    <>Starting from 𝐰 = 0, b = 0. The first point visited is always a “mistake”.</>
-                                ) : (
-                                    <>
-                                        Update {u} / {K} · pass {epoch} · {mistakesNow} points currently misclassified
-                                    </>
-                                )
-                            }
-                        />
-                    </>
+        <Rig
+            hint="Click to add points · click an added point to remove it"
+            visual={
+                <Plot
+                    label="Perceptron with bias training on generated data"
+                    view={VIEW}
+                    maxHeight={560}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        drawClassifier(p, cur.w1, cur.w2, cur.b);
+                        p.grid(0.25);
+                        if (showTruth && noise === 0) {
+                            const {w1, w2, b} = base.truth;
+                            p.infiniteLine(w1, w2, b, {color: C.green, width: 1.5, dash: [6, 6], alpha: 0.8});
+                            p.infiniteLine(w1, w2, b - margin, {color: C.green, width: 1, dash: [2, 5], alpha: 0.5});
+                            p.infiniteLine(w1, w2, b + margin, {color: C.green, width: 1, dash: [2, 5], alpha: 0.5});
+                        }
+                        drawLabelled(p, data, {
+                            ring: (k) =>
+                                u === 0
+                                    ? undefined
+                                    : k === active && f > 0 && f < 1
+                                      ? C.white
+                                      : isMistake(cur.w1, cur.w2, cur.b, data[3 * k], data[3 * k + 1], data[3 * k + 2])
+                                        ? C.red
+                                        : undefined,
+                        });
+                        if (u === 0) p.textPx("𝐰 = 0: no boundary yet", p.width / 2, 26, {align: "center", color: C.text2, size: 13});
+                    }}
+                />
+            }
+            caption={
+                    done ? (
+                        run.converged ? (
+                            <span className="c-green">
+                                Converged: {K} updates over {run.epochs} {run.epochs === 1 ? "pass" : "passes"} through the data.
+                            </span>
+                        ) : (
+                            <span className="c-red">
+                                Never settled. After {run.epochs} passes there was still a mistake in every pass, because no line separates these points.
+                            </span>
+                        )
+                    ) : u === 0 ? (
+                        <>Starting from 𝐰 = 0, b = 0. The first point visited is always a “mistake”.</>
+                    ) : (
+                        <>
+                            Update {u} / {K} · pass {epoch} · {mistakesNow} points currently misclassified
+                        </>
+                    )
                 }
-                side={
-                    <div className="controls">
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Slider label="Points" value={n} min={10} max={200} step={1} onChange={(v) => (setN(v), tl.reset())} format={(v) => v.toFixed(0)} />
                         <Slider label="Margin (gap around the true line)" value={margin} min={0.005} max={0.3} onChange={(v) => (setMargin(v), tl.reset())} color={C.green} />
                         <Slider
@@ -487,30 +501,34 @@ function ConvergenceFigure(props: {n?: number; margin?: number; noise?: number; 
                             ]}
                         />
                         <Toggle label="Show the generating line & margin" checked={showTruth} onChange={setShowTruth} />
-                        {bound ? (
-                            <Meter
-                                label="Mistakes vs. guarantee"
-                                right={`${u} ≤ ${bound.k}`}
-                                value={u}
-                                max={Math.max(bound.k, 1)}
-                                color={C.yellow}
-                            />
-                        ) : (
-                            <p className="note note-muted">The data isn’t separable by the generating line, so the guarantee doesn’t apply.</p>
-                        )}
-                        <Stats>
-                            <Stat label="Updates" value={u} color={C.yellow} />
-                            <Stat label={<M>R</M>} value={bound ? bound.R.toFixed(2) : "—"} />
-                            <Stat label={<M>{"\\gamma"}</M>} value={bound ? fmt(bound.gamma, 3) : "—"} color={C.green} />
-                        </Stats>
-                        <div className="control-row">
+                        <Actions>
                             <Button onClick={() => (setSeed(randomSeed()), setExtra(new Float64Array()), tl.reset())}>New data</Button>
                             {extra.length > 0 && <Button onClick={() => (setExtra(new Float64Array()), tl.reset())}>Clear added</Button>}
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    {bound ? (
+                        <Meter
+                            label="Mistakes vs. guarantee"
+                            right={`${u} ≤ ${bound.k}`}
+                            value={u}
+                            max={Math.max(bound.k, 1)}
+                            color={C.yellow}
+                        />
+                    ) : (
+                        <p className="note note-muted">The data isn’t separable by the generating line, so the guarantee doesn’t apply.</p>
+                    )}
+                    <Stats>
+                        <Stat label="Updates" value={u} color={C.yellow} />
+                        <Stat label={<M>R</M>} value={bound ? bound.R.toFixed(2) : "—"} />
+                        <Stat label={<M>{"\\gamma"}</M>} value={bound ? fmt(bound.gamma, 3) : "—"} color={C.green} />
+                    </Stats>
+                </>
+            }
+        />
     );
 }
 

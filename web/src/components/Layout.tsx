@@ -1,5 +1,6 @@
 import type {ReactNode} from "react";
-import {Link, NavLink} from "react-router";
+import {Link} from "react-router";
+import {PlaygroundMenu} from "./PlaygroundMenu";
 
 const REPO = "https://github.com/Exoceus/hyperplane";
 
@@ -34,9 +35,7 @@ export function Layout({children}: {children: ReactNode}) {
                         <Logo />
                     </Link>
                     <nav className="site-nav">
-                        <NavLink to="/" end>
-                            Playgrounds
-                        </NavLink>
+                        <PlaygroundMenu />
                         <a href={REPO} target="_blank" rel="noreferrer">
                             GitHub
                         </a>

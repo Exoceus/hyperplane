@@ -1,10 +1,10 @@
 import {useMemo, useState} from "react";
 import {Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
-import {FigureLayout} from "../../components/Figure";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Group, Rig} from "../../components/Rig";
 import {Plot3D} from "../../components/Plot3D";
 import {drawSurface, pickVertex, type Vec3} from "../../lib/scene3d";
 import {clamp, fmt, lerp, useTimeline} from "../../lib/hooks";
@@ -56,66 +56,71 @@ function OneDFigure(props: {fn?: number; lr?: number}) {
     };
 
     return (
-        <Instrument hint="Click anywhere on the plot to move the starting point">
-            <FigureLayout
-                main={
-                    <Plot
-                        label="One-dimensional gradient descent on a curve"
-                        view={fn.view}
-                        aspect={0.62}
-                        onPointer={(e) => {
-                            if (e.type === "down" || (e.type === "move" && e.dragging)) {
-                                setX0(clamp(e.x, fn.view.xmin * 0.98, fn.view.xmax * 0.98));
-                                tl.reset();
-                            }
-                        }}
-                        draw={(p) => {
-                            p.clear();
-                            p.grid(fn.id === 2 ? 1 : 0.5, {majorEvery: 2});
-                            p.polyline(curve, {color: C.white, width: 2.5});
-                            // Past iterates and their hops.
-                            for (let i = 0; i < k; i++) {
-                                p.line(traj[2 * i], traj[2 * i + 1], traj[2 * i + 2], traj[2 * i + 3], {color: rgba(C.yellow, 0.35), width: 1.2, dash: [3, 4]});
-                                p.circle(traj[2 * i], traj[2 * i + 1], 3.5, {fill: rgba(C.yellow, 0.5)});
-                            }
-                            // Tangent at the current iterate.
-                            const xk = traj[2 * k];
-                            const span = (fn.view.xmax - fn.view.xmin) * 0.12;
-                            p.line(xk - span, fx - dfx * span, xk + span, fx + dfx * span, {color: C.pink, width: 2});
-                            // Step arrow along the x axis: −η f'(x).
-                            const base = fn.view.ymin + (fn.view.ymax - fn.view.ymin) * 0.06;
-                            const step = -lr * dfx;
-                            if (Math.abs(step) * p.kx > 4 && k < K)
-                                p.arrow(xk, base, clamp(xk + step, fn.view.xmin, fn.view.xmax), base, {color: C.yellow, width: 2.5, head: 9});
-                            p.line(xk, base, xk, fx, {color: rgba(C.yellow, 0.3), width: 1, dash: [2, 3]});
-                            p.circle(x, yLin + hop, 8, {fill: C.yellow, stroke: C.canvas, width: 2});
-                            p.textPx(fn.name, 12, 20, {color: C.muted, size: 12});
-                        }}
-                    />
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Click anywhere on the plot to move the starting point"
+            visual={
+                <Plot
+                    label="One-dimensional gradient descent on a curve"
+                    view={fn.view}
+                    aspect={0.62}
+                    onPointer={(e) => {
+                        if (e.type === "down" || (e.type === "move" && e.dragging)) {
+                            setX0(clamp(e.x, fn.view.xmin * 0.98, fn.view.xmax * 0.98));
+                            tl.reset();
+                        }
+                    }}
+                    draw={(p) => {
+                        p.clear();
+                        p.grid(fn.id === 2 ? 1 : 0.5, {majorEvery: 2});
+                        p.polyline(curve, {color: C.white, width: 2.5});
+                        // Past iterates and their hops.
+                        for (let i = 0; i < k; i++) {
+                            p.line(traj[2 * i], traj[2 * i + 1], traj[2 * i + 2], traj[2 * i + 3], {color: rgba(C.yellow, 0.35), width: 1.2, dash: [3, 4]});
+                            p.circle(traj[2 * i], traj[2 * i + 1], 3.5, {fill: rgba(C.yellow, 0.5)});
+                        }
+                        // Tangent at the current iterate.
+                        const xk = traj[2 * k];
+                        const span = (fn.view.xmax - fn.view.xmin) * 0.12;
+                        p.line(xk - span, fx - dfx * span, xk + span, fx + dfx * span, {color: C.pink, width: 2});
+                        // Step arrow along the x axis: −η f'(x).
+                        const base = fn.view.ymin + (fn.view.ymax - fn.view.ymin) * 0.06;
+                        const step = -lr * dfx;
+                        if (Math.abs(step) * p.kx > 4 && k < K)
+                            p.arrow(xk, base, clamp(xk + step, fn.view.xmin, fn.view.xmax), base, {color: C.yellow, width: 2.5, head: 9});
+                        p.line(xk, base, xk, fx, {color: rgba(C.yellow, 0.3), width: 1, dash: [2, 3]});
+                        p.circle(x, yLin + hop, 8, {fill: C.yellow, stroke: C.canvas, width: 2});
+                        p.textPx(fn.name, 12, 20, {color: C.muted, size: 12});
+                    }}
+                />
+            }
+            caption={
+                <>
+                    Step {k} of {K}. {reg && <span style={{color: reg.color}}>{reg.text}</span>}
+                </>
+            }
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Function">
                         <Segmented value={fi} onChange={choose} options={FUNCS.map((f, i) => ({value: i, label: f.name}))} />
                         <div className="note">
                             <M>{fn.tex}</M>
                         </div>
+                    </Group>
+                    <Group label="Gradient descent">
                         <Slider label="Learning rate η" value={lr} min={0.01} max={1.6} log onChange={(v) => (setLr(v), tl.reset())} color={C.yellow} format={(v) => v.toFixed(3)} />
-                        {reg && (
-                            <p className="note" style={{color: reg.color}}>
-                                {reg.text}
-                            </p>
-                        )}
-                        <Stats>
-                            <Stat label="x" value={fmt(traj[2 * k], 3)} color={C.yellow} />
-                            <Stat label="f(x)" value={fmt(fx, 3)} />
-                            <Stat label="f′(x)" value={fmt(dfx, 3)} color={C.pink} />
-                            <Stat label="step −ηf′" value={fmt(-lr * dfx, 3)} color={C.yellow} />
-                        </Stats>
-                        <Player timeline={tl} status={`step ${k} of ${K}`} />
-                    </div>
-                }
-            />
-        </Instrument>
+                    </Group>
+                </>
+            }
+            readouts={
+                <Stats>
+                    <Stat label="x" value={fmt(traj[2 * k], 3)} color={C.yellow} />
+                    <Stat label="f(x)" value={fmt(fx, 3)} />
+                    <Stat label="f′(x)" value={fmt(dfx, 3)} color={C.pink} />
+                    <Stat label="step −ηf′" value={fmt(-lr * dfx, 3)} color={C.yellow} />
+                </Stats>
+            }
+        />
     );
 }
 
@@ -251,54 +256,55 @@ function RaceFigure({surface = 0}: {surface?: number}) {
     }).filter((_, i) => enabled[i]);
 
     return (
-        <Instrument hint="Click anywhere to drop the optimizers there">
-            <FigureLayout
-                sideWidth={300}
-                main={
-                    <>
-                        <Plot
-                            label="Optimizer trajectories on a 2D loss surface"
-                            view={surf.view}
-                            maxHeight={620}
-                            onPointer={onPointer}
-                            draw={(p) => {
-                                p.clear();
-                                p.image(field.img, surf.view);
-                                p.contours(field.contours, () => ({color: "rgba(255,255,255,0.14)", width: 1}));
-                                p.grid(0.5, {majorEvery: 2});
-                                // Gradient probe under the cursor: it is perpendicular to the contour.
-                                if (hover) {
-                                    const [, gx, gy] = surface_eval(surf.id, hover.x, hover.y);
-                                    const gn = Math.hypot(gx, gy);
-                                    if (gn > 1e-9) {
-                                        const L = 0.35;
-                                        p.arrow(hover.x, hover.y, hover.x - (gx / gn) * L, hover.y - (gy / gn) * L, {color: C.red, width: 2, head: 8});
-                                        p.line(hover.x - (gy / gn) * L * 0.6, hover.y + (gx / gn) * L * 0.6, hover.x + (gy / gn) * L * 0.6, hover.y - (gx / gn) * L * 0.6, {
-                                            color: rgba(C.white, 0.6),
-                                            width: 1.2,
-                                            dash: [3, 3],
-                                        });
-                                    }
-                                }
-                                OPTIMIZERS.forEach((o, i) => {
-                                    if (!enabled[i]) return;
-                                    const r = runs[i];
-                                    const cur = posAt(r, tl.t);
-                                    const pts: number[] = [];
-                                    for (let k = 0; k <= cur.k; k++) pts.push(r[3 * k], r[3 * k + 1]);
-                                    pts.push(cur.x, cur.y);
-                                    p.polyline(pts, {color: o.color, width: 2, alpha: 0.9});
-                                    p.circle(cur.x, cur.y, 6.5, {fill: o.color, stroke: C.canvas, width: 2});
+        <Rig
+            hint="Click anywhere to drop the optimizers there"
+            visual={
+                <Plot
+                    label="Optimizer trajectories on a 2D loss surface"
+                    view={surf.view}
+                    maxHeight={620}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        p.image(field.img, surf.view);
+                        p.contours(field.contours, () => ({color: "rgba(255,255,255,0.14)", width: 1}));
+                        p.grid(0.5, {majorEvery: 2});
+                        // Gradient probe under the cursor: it is perpendicular to the contour.
+                        if (hover) {
+                            const [, gx, gy] = surface_eval(surf.id, hover.x, hover.y);
+                            const gn = Math.hypot(gx, gy);
+                            if (gn > 1e-9) {
+                                const L = 0.35;
+                                p.arrow(hover.x, hover.y, hover.x - (gx / gn) * L, hover.y - (gy / gn) * L, {color: C.red, width: 2, head: 8});
+                                p.line(hover.x - (gy / gn) * L * 0.6, hover.y + (gx / gn) * L * 0.6, hover.x + (gy / gn) * L * 0.6, hover.y - (gx / gn) * L * 0.6, {
+                                    color: rgba(C.white, 0.6),
+                                    width: 1.2,
+                                    dash: [3, 3],
                                 });
-                                p.circle(start[0], start[1], 6, {stroke: C.white, width: 1.5, dash: [3, 3]});
-                            }}
-                        />
-                        <Player timeline={tl} status={surf.blurb} />
-                    </>
-                }
-                side={
-                    <div className="controls">
+                            }
+                        }
+                        OPTIMIZERS.forEach((o, i) => {
+                            if (!enabled[i]) return;
+                            const r = runs[i];
+                            const cur = posAt(r, tl.t);
+                            const pts: number[] = [];
+                            for (let k = 0; k <= cur.k; k++) pts.push(r[3 * k], r[3 * k + 1]);
+                            pts.push(cur.x, cur.y);
+                            p.polyline(pts, {color: o.color, width: 2, alpha: 0.9});
+                            p.circle(cur.x, cur.y, 6.5, {fill: o.color, stroke: C.canvas, width: 2});
+                        });
+                        p.circle(start[0], start[1], 6, {stroke: C.white, width: 1.5, dash: [3, 3]});
+                    }}
+                />
+            }
+            caption={surf.blurb}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Surface">
                         <Segmented value={si} onChange={choose} options={SURFACES.map((s, i) => ({value: i, label: s.name}))} />
+                    </Group>
+                    <Group label="Optimizers">
                         {OPTIMIZERS.map((o, i) => {
                             const r = runs[i];
                             const cur = posAt(r, tl.t);
@@ -331,11 +337,13 @@ function RaceFigure({surface = 0}: {surface?: number}) {
                                 </div>
                             );
                         })}
-                        <LineChart label="Loss over steps" series={lossSeries} logY height={110} xMax={STEPS} xLabel="step" yLabel="f − f_min (log)" />
-                    </div>
-                }
-            />
-        </Instrument>
+                    </Group>
+                </>
+            }
+            readouts={
+                <LineChart label="Loss over steps" series={lossSeries} logY height={110} xMax={STEPS} xLabel="step" yLabel="f − f_min (log)" />
+            }
+        />
     );
 }
 
@@ -380,49 +388,50 @@ function Race3D({surface = 2}: {surface?: number}) {
     };
 
     return (
-        <Instrument hint="Drag to orbit · click anywhere on the surface to drop the optimizers there">
-            <FigureLayout
-                sideWidth={280}
-                main={
-                    <>
-                        <Plot3D
-                            label="Optimizers rolling over a 3D loss surface"
-                            initial={{pitch: 0.62, yaw: 0.5}}
-                            onPick={(u, w, cam) => {
-                                const idx = pickVertex(cam, field.heights, N3, u, w);
-                                if (idx < 0) return;
-                                const i = idx % N3;
-                                const j = Math.floor(idx / N3);
-                                setStart([cx - half + (2 * half * i) / (N3 - 1), cy + half - (2 * half * j) / (N3 - 1)]);
-                            }}
-                            draw={(sc) => {
-                                drawSurface(sc, field.heights, N3, (h) => sequential(0.12 + 0.8 * ((h + 0.45) / 0.95)).map((c) => c * 0.95) as [number, number, number], {wire: 5});
-                                OPTIMIZERS.forEach((o, i) => {
-                                    if (!enabled[i]) return;
-                                    const r = runs[i];
-                                    const K = r.length / 3 - 1;
-                                    const upto = Math.min(K, Math.floor(tl.t));
-                                    let prev: Vec3 | null = null;
-                                    for (let k = 0; k <= upto; k++) {
-                                        const x = r[3 * k];
-                                        const y = r[3 * k + 1];
-                                        if (!inBounds(x, y)) break;
-                                        const pt = toScene(x, y, r[3 * k + 2]);
-                                        if (prev) sc.line(prev, pt, o.color, 2.2, {bias: 0.03});
-                                        prev = pt;
-                                    }
-                                    if (prev) sc.point(prev, o.color, 6.5, {bias: 0.06});
-                                });
-                                const [sx, sy] = start;
-                                sc.point([(sx - cx) / half, (sy - cy) / half, field.height(surface_eval(surf.id, sx, sy)[0]) + 0.03], C.white, 3.5, {ring: C.white, bias: 0.05});
-                            }}
-                        />
-                        <Player timeline={tl} status={surf.blurb} />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Drag to orbit · click anywhere on the surface to drop the optimizers there"
+            visual={
+                <Plot3D
+                    label="Optimizers rolling over a 3D loss surface"
+                    initial={{pitch: 0.62, yaw: 0.5}}
+                    onPick={(u, w, cam) => {
+                        const idx = pickVertex(cam, field.heights, N3, u, w);
+                        if (idx < 0) return;
+                        const i = idx % N3;
+                        const j = Math.floor(idx / N3);
+                        setStart([cx - half + (2 * half * i) / (N3 - 1), cy + half - (2 * half * j) / (N3 - 1)]);
+                    }}
+                    draw={(sc) => {
+                        drawSurface(sc, field.heights, N3, (h) => sequential(0.12 + 0.8 * ((h + 0.45) / 0.95)).map((c) => c * 0.95) as [number, number, number], {wire: 5});
+                        OPTIMIZERS.forEach((o, i) => {
+                            if (!enabled[i]) return;
+                            const r = runs[i];
+                            const K = r.length / 3 - 1;
+                            const upto = Math.min(K, Math.floor(tl.t));
+                            let prev: Vec3 | null = null;
+                            for (let k = 0; k <= upto; k++) {
+                                const x = r[3 * k];
+                                const y = r[3 * k + 1];
+                                if (!inBounds(x, y)) break;
+                                const pt = toScene(x, y, r[3 * k + 2]);
+                                if (prev) sc.line(prev, pt, o.color, 2.2, {bias: 0.03});
+                                prev = pt;
+                            }
+                            if (prev) sc.point(prev, o.color, 6.5, {bias: 0.06});
+                        });
+                        const [sx, sy] = start;
+                        sc.point([(sx - cx) / half, (sy - cy) / half, field.height(surface_eval(surf.id, sx, sy)[0]) + 0.03], C.white, 3.5, {ring: C.white, bias: 0.05});
+                    }}
+                />
+            }
+            caption={surf.blurb}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Surface">
                         <Segmented value={si} onChange={choose} options={SURFACES.map((x, i) => ({value: i, label: x.name}))} />
+                    </Group>
+                    <Group label="Optimizers">
                         {OPTIMIZERS.map((o, i) => {
                             const r = runs[i];
                             const k = Math.min(r.length / 3 - 1, Math.floor(tl.t));
@@ -439,14 +448,16 @@ function Race3D({surface = 2}: {surface?: number}) {
                                 </label>
                             );
                         })}
-                        <p className="note">
-                            Height is the loss (log-scaled so every surface fits). Valleys are dark, peaks are bright. Same optimizers and step sizes as
-                            the flat view.
-                        </p>
-                    </div>
-                }
-            />
-        </Instrument>
+                    </Group>
+                </>
+            }
+            readouts={
+                <p className="note">
+                    Height is the loss (log-scaled so every surface fits). Valleys are dark, peaks are bright. Same optimizers and step sizes as
+                    the flat view.
+                </p>
+            }
+        />
     );
 }
 
