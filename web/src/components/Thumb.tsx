@@ -142,7 +142,7 @@ const DRAW: Record<string, (p: Painter) => void> = {
                     p.line(a[0], a[1], b[0], b[1], {color: rgba(w > 0 ? C.blue : C.orange, 0.25 + Math.abs(w) * 0.5), width: 0.6 + Math.abs(w) * 2});
                 }
         pos.flat().forEach(([x, y], i) => {
-            p.circle(x, y, 9, {fill: "#18202e", stroke: i % 3 === 0 ? C.blue : i % 3 === 1 ? C.orange : C.purple, width: 2});
+            p.circle(x, y, 9, {fill: C.panel, stroke: i % 3 === 0 ? C.blue : i % 3 === 1 ? C.orange : C.purple, width: 2});
         });
     },
     "k-means": (p) => {

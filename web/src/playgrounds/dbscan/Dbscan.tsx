@@ -52,7 +52,7 @@ function generate(kind: Kind, seed: number): Float64Array {
     }
 }
 
-const NOISE = "#5b6578";
+const NOISE = "#6e695e";
 
 function DbscanInstrument(props: {kind?: Kind; eps?: number; minPts?: number}) {
     const [kind, setKind] = useState<Kind>(props.kind ?? "moons");

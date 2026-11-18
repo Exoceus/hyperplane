@@ -4,16 +4,16 @@
  * yellow 𝐰 in the formula next to it.
  */
 export const C = {
-    bg: "#0b0e14",
-    canvas: "#0d1118",
-    panel: "#121722",
-    grid: "rgba(148, 163, 184, 0.07)",
-    gridMajor: "rgba(148, 163, 184, 0.14)",
-    axis: "rgba(148, 163, 184, 0.38)",
-    text: "#e8ebf1",
-    text2: "#b4bccb",
-    muted: "#7d879a",
-    white: "#f4f6fa",
+    bg: "#0e0d0b",
+    canvas: "#12110f",
+    panel: "#171613",
+    grid: "rgba(186, 178, 160, 0.07)",
+    gridMajor: "rgba(186, 178, 160, 0.14)",
+    axis: "rgba(186, 178, 160, 0.38)",
+    text: "#f1eee6",
+    text2: "#c4bfb3",
+    muted: "#8b867a",
+    white: "#f7f5ef",
 
     blue: "#58c4dd",
     orange: "#f0ac5f",
@@ -51,9 +51,9 @@ export function mix(a: RGB, b: RGB, t: number): RGB {
 export const BG_RGB = hexToRgb(C.canvas);
 export const CLASS_RGB = CLASS_COLORS.map(hexToRgb);
 
-/** Sequential colormap for loss surfaces: deep navy → violet → magenta → amber → cream. */
+/** Sequential colormap for loss surfaces: ink → violet → magenta → amber → cream. */
 const SEQ_STOPS: RGB[] = [
-    [13, 17, 28],
+    [18, 16, 20],
     [36, 30, 78],
     [86, 44, 120],
     [150, 56, 122],
