@@ -1,9 +1,9 @@
 import {useMemo, useState} from "react";
 import {Button, Player, Segmented, Stat, Stats, Toggle} from "../../components/Controls";
-import {FigureLayout} from "../../components/Figure";
 import {M, MathBlock} from "../../components/Math";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {Plot} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {Plot3D} from "../../components/Plot3D";
 import {classRegionColor} from "../../lib/colors";
 import {useTimeline} from "../../lib/hooks";
@@ -109,59 +109,65 @@ function NbInstrument(props: {kind?: Kind; full?: boolean}) {
     }, [data, used, classes, full, n]);
 
     return (
-        <Instrument hint="Training points stream in one at a time · each class's Gaussian (ellipses) and the decision regions update after every point">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot
-                            label="Gaussian naive Bayes decision regions"
-                            view={VIEW}
-                            maxHeight={580}
-                            draw={(p) => {
-                                p.clear();
-                                p.image(fit.regions, VIEW);
-                                p.grid(0.25, {axes: false});
-                                if (fit.contour) p.contours(fit.contour, () => ({color: C.white, width: 2.5}));
-                                for (let i = 0; i < n; i++) {
-                                    const x = data[3 * i];
-                                    const y = data[3 * i + 1];
-                                    if (i < used) p.point(x, y, classColor(data[3 * i + 2]), {r: 4, ring: i === used - 1 && !tl.atEnd ? C.yellow : undefined});
-                                    else p.circle(x, y, 2.5, {fill: rgba(C.muted, 0.35)});
-                                }
-                                for (let c = 0; c < classes; c++) {
-                                    const prm = fit.params.subarray(c * CS, (c + 1) * CS);
-                                    ellipse(p, prm, 1, classColor(c), 2.2);
-                                    ellipse(p, prm, 2, classColor(c), 1.4, [5, 4]);
-                                    p.circle(prm[1], prm[2], 5, {fill: C.canvas, stroke: classColor(c), width: 2.5});
-                                }
-                            }}
-                        />
-                        <Player timeline={tl} status={tl.atEnd ? `Trained on all ${n} points.` : `Learned from ${used} of ${n} points so far: each class is just a mean and a spread.`} />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Training points stream in one at a time · each class's Gaussian (ellipses) and the decision regions update after every point"
+            visual={
+                <Plot
+                    label="Gaussian naive Bayes decision regions"
+                    view={VIEW}
+                    maxHeight={580}
+                    draw={(p) => {
+                        p.clear();
+                        p.image(fit.regions, VIEW);
+                        p.grid(0.25, {axes: false});
+                        if (fit.contour) p.contours(fit.contour, () => ({color: C.white, width: 2.5}));
+                        for (let i = 0; i < n; i++) {
+                            const x = data[3 * i];
+                            const y = data[3 * i + 1];
+                            if (i < used) p.point(x, y, classColor(data[3 * i + 2]), {r: 4, ring: i === used - 1 && !tl.atEnd ? C.yellow : undefined});
+                            else p.circle(x, y, 2.5, {fill: rgba(C.muted, 0.35)});
+                        }
+                        for (let c = 0; c < classes; c++) {
+                            const prm = fit.params.subarray(c * CS, (c + 1) * CS);
+                            ellipse(p, prm, 1, classColor(c), 2.2);
+                            ellipse(p, prm, 2, classColor(c), 1.4, [5, 4]);
+                            p.circle(prm[1], prm[2], 5, {fill: C.canvas, stroke: classColor(c), width: 2.5});
+                        }
+                    }}
+                />
+            }
+            caption={tl.atEnd ? `Trained on all ${n} points.` : `Learned from ${used} of ${n} points so far: each class is just a mean and a spread.`}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Segmented value={kind} onChange={setKind} options={KINDS} />
-                        <Toggle label="Full covariance (QDA, not naive)" checked={full} onChange={setFull} />
-                        <Stats>
-                            <Stat label="points used" value={used} />
-                            <Stat label="accuracy (all points)" value={`${Math.round(fit.acc * 100)}%`} color={C.green} />
-                            {Array.from({length: classes}, (_, c) => (
-                                <Stat key={c} label={`prior P(class ${c})`} value={fit.params[c * CS].toFixed(2)} color={classColor(c)} />
-                            ))}
-                        </Stats>
-                        <p className="note">
-                            {full
-                                ? "Each class gets a full covariance, so its ellipse can tilt. That makes this QDA."
-                                : "Naive Bayes assumes the features are independent within each class, so every ellipse stays aligned with the axes."}
-                        </p>
-                        <div className="control-row">
+                        <Actions>
                             <Button onClick={() => setSeed(randomSeed())}>New data</Button>
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                    <Group label="Model">
+                        <Toggle label="Full covariance (QDA, not naive)" checked={full} onChange={setFull} />
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="points used" value={used} />
+                        <Stat label="accuracy (all points)" value={`${Math.round(fit.acc * 100)}%`} color={C.green} />
+                        {Array.from({length: classes}, (_, c) => (
+                            <Stat key={c} label={`prior P(class ${c})`} value={fit.params[c * CS].toFixed(2)} color={classColor(c)} />
+                        ))}
+                    </Stats>
+                    <p className="note">
+                        {full
+                            ? "Each class gets a full covariance, so its ellipse can tilt. That makes this QDA."
+                            : "Naive Bayes assumes the features are independent within each class, so every ellipse stays aligned with the axes."}
+                    </p>
+                </>
+            }
+        />
     );
 }
 
@@ -187,43 +193,45 @@ function Densities3D() {
     const rise = tl.t;
 
     return (
-        <Instrument hint="Each class's Gaussian (weighted by its prior) is a hill · the prediction is whichever hill is taller · drag to orbit">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot3D
-                            label="Class-conditional densities as 3D hills"
-                            initial={{pitch: 0.5, yaw: 0.6}}
-                            draw={(sc) => {
-                                // Floor colored by the winning class.
-                                const floor = new Float64Array(N3 * N3).fill(-0.45);
-                                const win = (i: number) => {
-                                    let best = 0;
-                                    for (let c = 1; c < classes; c++) if (surfaces[c][i] > surfaces[best][i]) best = c;
-                                    return best;
-                                };
-                                drawSurface(sc, floor, N3, () => [20, 24, 32], {alpha: 1});
-                                for (let c = 0; c < classes; c++) {
-                                    const hts = surfaces[c].map((v, i) => -0.45 + (v + 0.45) * rise + (win(i) === c ? 0.002 : 0));
-                                    drawSurface(sc, hts, N3, () => CLASS_RGB[c], {alpha: 0.82, wire: 4});
-                                }
-                            }}
-                        />
-                        <Player timeline={tl} status="The decision boundary sits exactly where two hills cross." />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Each class's Gaussian (weighted by its prior) is a hill · the prediction is whichever hill is taller · drag to orbit"
+            visual={
+                <Plot3D
+                    label="Class-conditional densities as 3D hills"
+                    initial={{pitch: 0.5, yaw: 0.6}}
+                    draw={(sc) => {
+                        // Floor colored by the winning class.
+                        const floor = new Float64Array(N3 * N3).fill(-0.45);
+                        const win = (i: number) => {
+                            let best = 0;
+                            for (let c = 1; c < classes; c++) if (surfaces[c][i] > surfaces[best][i]) best = c;
+                            return best;
+                        };
+                        drawSurface(sc, floor, N3, () => [20, 24, 32], {alpha: 1});
+                        for (let c = 0; c < classes; c++) {
+                            const hts = surfaces[c].map((v, i) => -0.45 + (v + 0.45) * rise + (win(i) === c ? 0.002 : 0));
+                            drawSurface(sc, hts, N3, () => CLASS_RGB[c], {alpha: 0.82, wire: 4});
+                        }
+                    }}
+                />
+            }
+            caption="The decision boundary sits exactly where two hills cross."
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Segmented value={kind} onChange={setKind} options={KINDS} />
-                        <p className="note">
-                            Height is <M>{"P(c)\\,p(\\vx \\mid c)"}</M> (square-rooted so both hills are visible). Bayes' rule picks the class whose hill is tallest at each point, so the boundary is
-                            where two hills cross. A tight class makes a tall, narrow peak, and a wide class makes a low plateau, which is why their
-                            boundary curves into a circle.
-                        </p>
-                    </div>
-                }
-            />
-        </Instrument>
+                    </Group>
+                </>
+            }
+            readouts={
+                <p className="note">
+                    Height is <M>{"P(c)\\,p(\\vx \\mid c)"}</M> (square-rooted so both hills are visible). Bayes' rule picks the class whose hill is tallest at each point, so the boundary is
+                    where two hills cross. A tight class makes a tall, narrow peak, and a wide class makes a low plateau, which is why their
+                    boundary curves into a circle.
+                </p>
+            }
+        />
     );
 }
 

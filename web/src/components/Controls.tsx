@@ -263,34 +263,33 @@ export function SpeedPicker() {
     );
 }
 
-interface PlayerProps {
-    timeline: Timeline;
-    /** Label for the current step, e.g. "update 3 / 12". */
-    status?: ReactNode;
-}
-
 /** Transport for a recorded run: reset, step, play, scrub and speed. */
-export function Player({timeline: tl, status}: PlayerProps) {
+export function Player({timeline: tl}: {timeline: Timeline}) {
     const pos = tl.length > 0 ? (tl.t / tl.length) * 100 : 0;
     useTransportKeys({toggle: tl.length > 0 ? tl.toggle : undefined, forward: tl.stepForward, back: tl.stepBack});
     return (
-        <div className="player">
-            <div className="player-buttons">
-                <Button onClick={tl.reset} title="Back to the start" variant="subtle">
-                    {Icon.reset}
-                </Button>
-                <Button onClick={tl.stepBack} title="Step back (←)" variant="subtle" disabled={tl.t <= 0}>
-                    {Icon.prev}
-                </Button>
-                <Button onClick={tl.toggle} title={tl.playing ? "Pause (space)" : "Play (space)"} variant="primary" disabled={tl.length === 0}>
-                    {tl.playing ? Icon.pause : Icon.play}
-                </Button>
-                <Button onClick={tl.stepForward} title="Step forward (→)" variant="subtle" disabled={tl.atEnd}>
-                    {Icon.next}
-                </Button>
+        <div className="transport">
+            <div className="transport-row">
+                <div className="transport-buttons">
+                    <Button onClick={tl.reset} title="Back to the start" variant="subtle">
+                        {Icon.reset}
+                    </Button>
+                    <Button onClick={tl.stepBack} title="Step back (←)" variant="subtle" disabled={tl.t <= 0}>
+                        {Icon.prev}
+                    </Button>
+                    <Button onClick={tl.toggle} title={tl.playing ? "Pause (space)" : "Play (space)"} variant="primary" disabled={tl.length === 0}>
+                        {tl.playing ? Icon.pause : Icon.play}
+                    </Button>
+                    <Button onClick={tl.stepForward} title="Step forward (→)" variant="subtle" disabled={tl.atEnd}>
+                        {Icon.next}
+                    </Button>
+                </div>
+                <span className="transport-keys" aria-hidden>
+                    space · ← →
+                </span>
             </div>
             <input
-                className="player-scrub"
+                className="transport-scrub"
                 type="range"
                 min={0}
                 max={Math.max(1, tl.length) * 100}
@@ -300,8 +299,16 @@ export function Player({timeline: tl, status}: PlayerProps) {
                 style={{"--pos": `${pos}%`} as React.CSSProperties}
                 disabled={tl.length === 0}
             />
+            <SpeedRow />
+        </div>
+    );
+}
+
+function SpeedRow() {
+    return (
+        <div className="transport-speed">
+            <span className="transport-speed-label">Speed</span>
             <SpeedPicker />
-            {status && <div className="player-status">{status}</div>}
         </div>
     );
 }
@@ -323,25 +330,28 @@ interface LiveControlsProps {
 export function LiveControls({running, onToggle, onStep, stepTitle = "Step once", onReset, resetTitle = "Start over", children, status}: LiveControlsProps) {
     useTransportKeys({toggle: onToggle, forward: onStep});
     return (
-        <div className="player player-live">
-            <div className="player-buttons">
-                {onReset && (
-                    <Button onClick={onReset} title={resetTitle} variant="subtle">
-                        {Icon.reset}
+        <div className="transport">
+            <div className="transport-row">
+                <div className="transport-buttons">
+                    {onReset && (
+                        <Button onClick={onReset} title={resetTitle} variant="subtle">
+                            {Icon.reset}
+                        </Button>
+                    )}
+                    <Button onClick={onToggle} title={running ? "Pause (space)" : "Play (space)"} variant="primary">
+                        {running ? Icon.pause : Icon.play}
                     </Button>
-                )}
-                <Button onClick={onToggle} title={running ? "Pause (space)" : "Play (space)"} variant="primary">
-                    {running ? Icon.pause : Icon.play}
-                </Button>
-                {onStep && (
-                    <Button onClick={onStep} title={`${stepTitle} (→)`} variant="subtle" disabled={running}>
-                        {Icon.next}
-                    </Button>
-                )}
+                    {onStep && (
+                        <Button onClick={onStep} title={`${stepTitle} (→)`} variant="subtle" disabled={running}>
+                            {Icon.next}
+                        </Button>
+                    )}
+                </div>
+                <span className={`transport-live ${running ? "is-on" : ""}`}>{running ? "running" : "paused"}</span>
             </div>
-            <div className="player-extra">{children}</div>
-            <SpeedPicker />
-            {status && <div className="player-status">{status}</div>}
+            {children && <div className="control-row">{children}</div>}
+            <SpeedRow />
+            {status && <div className="transport-status">{status}</div>}
         </div>
     );
 }

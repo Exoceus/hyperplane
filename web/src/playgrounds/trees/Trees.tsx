@@ -1,10 +1,11 @@
 import {useMemo, useState} from "react";
 import {Button, Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
-import {FigureLayout, Panel} from "../../components/Figure";
+import {Panel} from "../../components/Figure";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {classRegionColor} from "../../lib/colors";
 import {drawLabelled} from "../../lib/data";
 import {ease, useTimeline} from "../../lib/hooks";
@@ -164,120 +165,121 @@ function TreeInstrument(props: {kind?: Kind; depth?: number; minLeaf?: number; n
     const next = nodes.find((n) => n.rank === done);
 
     return (
-        <Instrument hint="The tree grows one split at a time; change anything to regrow it · hover to trace a point down the tree">
-            <FigureLayout
-                sideWidth={300}
-                main={
-                    <>
-                        <div className="duo">
-                            <Panel label="Feature space" right={`${leaves.length} regions`}>
-                                <Plot
-                                    label="Decision tree regions"
-                                    view={VIEW}
-                                    onPointer={onPointer}
-                                    draw={(p) => {
-                                        p.clear();
-                                        for (const id of leaves) {
-                                            const n = nodes[id];
-                                            const purity = 1 - Math.min(1, n.impurity / maxImp);
-                                            const [r, g, b] = classRegionColor(n.majority, 0.25 + 0.75 * purity, 0.36);
-                                            const bx = n.box;
-                                            p.polyline([bx.xmin, bx.ymin, bx.xmax, bx.ymin, bx.xmax, bx.ymax, bx.xmin, bx.ymax], {
-                                                close: true,
-                                                fill: `rgb(${r},${g},${b})`,
-                                                color: "none",
-                                            });
-                                        }
-                                        if (path.length) {
-                                            const bx = nodes[path[path.length - 1]].box;
-                                            p.polyline([bx.xmin, bx.ymin, bx.xmax, bx.ymin, bx.xmax, bx.ymax, bx.xmin, bx.ymax], {close: true, color: C.yellow, width: 2});
-                                        }
-                                        p.grid(0.25, {axes: false});
-                                        for (const n of nodes) {
-                                            if (n.feature < 0 || n.rank > done) continue;
-                                            const f = n.rank === done ? ease(growing) : 1;
-                                            if (f <= 0) continue;
-                                            const b = n.box;
-                                            if (n.feature === 0) {
-                                                const mid = (b.ymin + b.ymax) / 2;
-                                                const h = ((b.ymax - b.ymin) / 2) * f;
-                                                p.line(n.threshold, mid - h, n.threshold, mid + h, {color: C.white, width: n.rank === done ? 2.5 : 1.5});
-                                            } else {
-                                                const mid = (b.xmin + b.xmax) / 2;
-                                                const w = ((b.xmax - b.xmin) / 2) * f;
-                                                p.line(mid - w, n.threshold, mid + w, n.threshold, {color: C.white, width: n.rank === done ? 2.5 : 1.5});
-                                            }
-                                        }
-                                        drawLabelled(p, data, {r: 3.8});
-                                        if (hover) p.circle(hover.x, hover.y, 5, {fill: C.yellow, stroke: C.canvas, width: 2});
-                                    }}
-                                />
-                            </Panel>
-                            <Panel label="The tree" right={`depth ${Math.min(maxDepth, nodes.filter((n) => n.rank >= 0 && n.rank < done).reduce((m, n) => Math.max(m, n.depth + 1), 0))}`}>
-                                <Plot
-                                    label="Tree diagram"
-                                    view={{xmin: -0.8, xmax: leafCount - 0.2, ymin: -(maxDepth + 0.6), ymax: 0.6}}
-                                    aspect={1}
-                                    draw={(p) => {
-                                        p.clear();
-                                        const visible = (n: TreeNode) => n.parent < 0 || nodes[n.parent].rank < done || (nodes[n.parent].rank === done && growing > 0);
-                                        for (const n of nodes) {
-                                            if (n.parent < 0 || !visible(n)) continue;
-                                            const par = nodes[n.parent];
-                                            const onPath = path.includes(n.parent) && path.includes(nodes.indexOf(n));
-                                            const a = par.rank === done ? ease(growing) : 1;
-                                            p.line(par.x, -par.depth, par.x + (n.x - par.x) * a, -par.depth - (n.depth - par.depth) * a, {
-                                                color: onPath ? C.yellow : rgba(C.muted, 0.6),
-                                                width: onPath ? 2.5 : 1.2,
-                                            });
-                                        }
-                                        const r = Math.max(3, Math.min(10, (p.width / leafCount) * 0.28));
-                                        nodes.forEach((n, id) => {
-                                            if (!visible(n)) return;
-                                            const isLeafNow = n.feature < 0 || n.rank >= done;
-                                            const onPath = path.includes(id);
-                                            p.circle(n.x, -n.depth, r, {
-                                                fill: isLeafNow ? classColor(n.majority) : C.canvas,
-                                                stroke: onPath ? C.yellow : isLeafNow ? C.canvas : classColor(n.majority),
-                                                width: onPath ? 3 : 2,
-                                            });
-                                            if (!isLeafNow && leafCount <= 18)
-                                                p.text(`${n.feature === 0 ? "x" : "y"} < ${n.threshold.toFixed(2)}`, n.x, -n.depth, {
-                                                    color: C.text2,
-                                                    size: 10.5,
-                                                    font: "mono",
-                                                    align: "center",
-                                                    dy: -r - 5,
-                                                });
-                                        });
-                                    }}
-                                />
-                            </Panel>
-                        </div>
-                        <Player
-                            timeline={tl}
-                            status={
-                                next && tl.t < splits ? (
-                                    <>
-                                        Split {done + 1} of {splits}: the region with {next.n} points is cut at{" "}
-                                        <b className="mono">
-                                            {next.feature === 0 ? "x" : "y"} = {next.threshold.toFixed(2)}
-                                        </b>
-                                        , the cut that makes the two halves purest.
-                                    </>
-                                ) : (
-                                    <>Fully grown: {splits} splits, {leafCount} leaves.</>
-                                )
-                            }
+        <Rig
+            hint="The tree grows one split at a time; change anything to regrow it · hover to trace a point down the tree"
+            visual={
+                <div className="duo">
+                    <Panel label="Feature space" right={`${leaves.length} regions`}>
+                        <Plot
+                            label="Decision tree regions"
+                            view={VIEW}
+                            onPointer={onPointer}
+                            draw={(p) => {
+                                p.clear();
+                                for (const id of leaves) {
+                                    const n = nodes[id];
+                                    const purity = 1 - Math.min(1, n.impurity / maxImp);
+                                    const [r, g, b] = classRegionColor(n.majority, 0.25 + 0.75 * purity, 0.36);
+                                    const bx = n.box;
+                                    p.polyline([bx.xmin, bx.ymin, bx.xmax, bx.ymin, bx.xmax, bx.ymax, bx.xmin, bx.ymax], {
+                                        close: true,
+                                        fill: `rgb(${r},${g},${b})`,
+                                        color: "none",
+                                    });
+                                }
+                                if (path.length) {
+                                    const bx = nodes[path[path.length - 1]].box;
+                                    p.polyline([bx.xmin, bx.ymin, bx.xmax, bx.ymin, bx.xmax, bx.ymax, bx.xmin, bx.ymax], {close: true, color: C.yellow, width: 2});
+                                }
+                                p.grid(0.25, {axes: false});
+                                for (const n of nodes) {
+                                    if (n.feature < 0 || n.rank > done) continue;
+                                    const f = n.rank === done ? ease(growing) : 1;
+                                    if (f <= 0) continue;
+                                    const b = n.box;
+                                    if (n.feature === 0) {
+                                        const mid = (b.ymin + b.ymax) / 2;
+                                        const h = ((b.ymax - b.ymin) / 2) * f;
+                                        p.line(n.threshold, mid - h, n.threshold, mid + h, {color: C.white, width: n.rank === done ? 2.5 : 1.5});
+                                    } else {
+                                        const mid = (b.xmin + b.xmax) / 2;
+                                        const w = ((b.xmax - b.xmin) / 2) * f;
+                                        p.line(mid - w, n.threshold, mid + w, n.threshold, {color: C.white, width: n.rank === done ? 2.5 : 1.5});
+                                    }
+                                }
+                                drawLabelled(p, data, {r: 3.8});
+                                if (hover) p.circle(hover.x, hover.y, 5, {fill: C.yellow, stroke: C.canvas, width: 2});
+                            }}
                         />
-                    </>
+                    </Panel>
+                    <Panel label="The tree" right={`depth ${Math.min(maxDepth, nodes.filter((n) => n.rank >= 0 && n.rank < done).reduce((m, n) => Math.max(m, n.depth + 1), 0))}`}>
+                        <Plot
+                            label="Tree diagram"
+                            view={{xmin: -0.8, xmax: leafCount - 0.2, ymin: -(maxDepth + 0.6), ymax: 0.6}}
+                            aspect={1}
+                            draw={(p) => {
+                                p.clear();
+                                const visible = (n: TreeNode) => n.parent < 0 || nodes[n.parent].rank < done || (nodes[n.parent].rank === done && growing > 0);
+                                for (const n of nodes) {
+                                    if (n.parent < 0 || !visible(n)) continue;
+                                    const par = nodes[n.parent];
+                                    const onPath = path.includes(n.parent) && path.includes(nodes.indexOf(n));
+                                    const a = par.rank === done ? ease(growing) : 1;
+                                    p.line(par.x, -par.depth, par.x + (n.x - par.x) * a, -par.depth - (n.depth - par.depth) * a, {
+                                        color: onPath ? C.yellow : rgba(C.muted, 0.6),
+                                        width: onPath ? 2.5 : 1.2,
+                                    });
+                                }
+                                const r = Math.max(3, Math.min(10, (p.width / leafCount) * 0.28));
+                                nodes.forEach((n, id) => {
+                                    if (!visible(n)) return;
+                                    const isLeafNow = n.feature < 0 || n.rank >= done;
+                                    const onPath = path.includes(id);
+                                    p.circle(n.x, -n.depth, r, {
+                                        fill: isLeafNow ? classColor(n.majority) : C.canvas,
+                                        stroke: onPath ? C.yellow : isLeafNow ? C.canvas : classColor(n.majority),
+                                        width: onPath ? 3 : 2,
+                                    });
+                                    if (!isLeafNow && leafCount <= 18)
+                                        p.text(`${n.feature === 0 ? "x" : "y"} < ${n.threshold.toFixed(2)}`, n.x, -n.depth, {
+                                            color: C.text2,
+                                            size: 10.5,
+                                            font: "mono",
+                                            align: "center",
+                                            dy: -r - 5,
+                                        });
+                                });
+                            }}
+                        />
+                    </Panel>
+                </div>
+            }
+            caption={
+                    next && tl.t < splits ? (
+                        <>
+                            Split {done + 1} of {splits}: the region with {next.n} points is cut at{" "}
+                            <b className="mono">
+                                {next.feature === 0 ? "x" : "y"} = {next.threshold.toFixed(2)}
+                            </b>
+                            , the cut that makes the two halves purest.
+                        </>
+                    ) : (
+                        <>Fully grown: {splits} splits, {leafCount} leaves.</>
+                    )
                 }
-                side={
-                    <div className="controls">
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Segmented value={kind} onChange={(v) => (setKind(v), reset())} options={KINDS} />
+                        <Slider label="noise" value={noise} min={0} max={0.6} onChange={(v) => (setNoise(v), reset())} />
+                        <Actions>
+                            <Button onClick={() => (setSeed(randomSeed()), reset())}>New data</Button>
+                        </Actions>
+                    </Group>
+                    <Group label="Tree">
                         <Slider label="max depth" value={depth} min={1} max={DEPTH_MAX} step={1} onChange={(v) => (setDepth(v), reset())} format={(v) => v.toFixed(0)} color={C.yellow} />
                         <Slider label="min points per leaf" value={minLeaf} min={1} max={30} step={1} onChange={(v) => (setMinLeaf(v), reset())} format={(v) => v.toFixed(0)} />
-                        <Slider label="noise" value={noise} min={0} max={0.6} onChange={(v) => (setNoise(v), reset())} />
                         <Segmented
                             label="impurity"
                             value={criterion}
@@ -287,33 +289,34 @@ function TreeInstrument(props: {kind?: Kind; depth?: number; minLeaf?: number; n
                                 {value: 1, label: "Entropy"},
                             ]}
                         />
-                        <div className="panel-label">
-                            <span>Accuracy vs. depth</span>
-                        </div>
-                        <LineChart
-                            label="Training and test accuracy for each depth"
-                            series={[
-                                {values: curve.train, color: C.muted, x0: 1, dash: [4, 3]},
-                                {values: curve.held, color: C.green, x0: 1},
-                            ]}
-                            height={100}
-                            xMin={1}
-                            yMax={1}
-                            marker={depth}
-                            yFormat={(v) => `${Math.round(v * 100)}%`}
-                            onPick={(x) => (setDepth(Math.max(1, Math.min(DEPTH_MAX, Math.round(x)))), reset())}
-                        />
-                        <Stats>
-                            <Stat label="test accuracy" value={`${Math.round(curve.held[depth - 1] * 100)}%`} color={C.green} />
-                            <Stat label="leaves" value={leafCount} />
-                        </Stats>
-                        <div className="control-row">
-                            <Button onClick={() => (setSeed(randomSeed()), reset())}>New data</Button>
-                        </div>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="test accuracy" value={`${Math.round(curve.held[depth - 1] * 100)}%`} color={C.green} />
+                        <Stat label="leaves" value={leafCount} />
+                    </Stats>
+                    <div className="panel-label">
+                        <span>Accuracy vs. depth</span>
                     </div>
-                }
-            />
-        </Instrument>
+                    <LineChart
+                        label="Training and test accuracy for each depth"
+                        series={[
+                            {values: curve.train, color: C.muted, x0: 1, dash: [4, 3]},
+                            {values: curve.held, color: C.green, x0: 1},
+                        ]}
+                        height={100}
+                        xMin={1}
+                        yMax={1}
+                        marker={depth}
+                        yFormat={(v) => `${Math.round(v * 100)}%`}
+                        onPick={(x) => (setDepth(Math.max(1, Math.min(DEPTH_MAX, Math.round(x)))), reset())}
+                    />
+                </>
+            }
+        />
     );
 }
 
@@ -359,56 +362,59 @@ function ForestInstrument(props: {kind?: Kind; trees?: number; depth?: number}) 
     }, [grids, shown, cells, classes]);
 
     return (
-        <Instrument hint="Trees join the forest one at a time · each sees a different bootstrap sample and random features">
-            <FigureLayout
-                sideWidth={280}
-                main={
-                    <>
-                        <div className="duo">
-                            <Panel label={`Tree #${shown} on its own`}>
-                                <Plot
-                                    label="The most recently added tree"
-                                    view={VIEW}
-                                    draw={(p) => {
-                                        p.clear();
-                                        p.image(latest, VIEW, false);
-                                        p.grid(0.25, {axes: false});
-                                        drawLabelled(p, data, {r: 3.4, alpha: 0.7});
-                                    }}
-                                />
-                            </Panel>
-                            <Panel label={`Vote of ${shown} tree${shown === 1 ? "" : "s"}`}>
-                                <Plot
-                                    label="Random forest vote so far"
-                                    view={VIEW}
-                                    draw={(p) => {
-                                        p.clear();
-                                        p.image(vote, VIEW);
-                                        p.grid(0.25, {axes: false});
-                                        drawLabelled(p, data, {r: 3.4});
-                                    }}
-                                />
-                            </Panel>
-                        </div>
-                        <Player timeline={tl} status={`${shown} of ${trees} trees · shading = how unanimous the vote is`} />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Trees join the forest one at a time · each sees a different bootstrap sample and random features"
+            visual={
+                <div className="duo">
+                    <Panel label={`Tree #${shown} on its own`}>
+                        <Plot
+                            label="The most recently added tree"
+                            view={VIEW}
+                            draw={(p) => {
+                                p.clear();
+                                p.image(latest, VIEW, false);
+                                p.grid(0.25, {axes: false});
+                                drawLabelled(p, data, {r: 3.4, alpha: 0.7});
+                            }}
+                        />
+                    </Panel>
+                    <Panel label={`Vote of ${shown} tree${shown === 1 ? "" : "s"}`}>
+                        <Plot
+                            label="Random forest vote so far"
+                            view={VIEW}
+                            draw={(p) => {
+                                p.clear();
+                                p.image(vote, VIEW);
+                                p.grid(0.25, {axes: false});
+                                drawLabelled(p, data, {r: 3.4});
+                            }}
+                        />
+                    </Panel>
+                </div>
+            }
+            caption={`${shown} of ${trees} trees · shading = how unanimous the vote is`}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Segmented value={kind} onChange={setKind} options={KINDS} />
+                        <Actions>
+                            <Button onClick={() => setSeed(randomSeed())}>New data</Button>
+                        </Actions>
+                    </Group>
+                    <Group label="Forest">
                         <Slider label="trees in the forest" value={trees} min={1} max={150} step={1} onChange={setTrees} format={(v) => v.toFixed(0)} color={C.green} />
                         <Slider label="max depth" value={depth} min={1} max={DEPTH_MAX} step={1} onChange={setDepth} format={(v) => v.toFixed(0)} color={C.yellow} />
-                        <p className="note">
-                            Each tree alone is jagged and overfit (left). Because every tree trains on a <strong>bootstrap</strong> resample and picks a random
-                            feature at each split, they make <em>different</em> mistakes, and the vote (right) averages them away.
-                        </p>
-                        <div className="control-row">
-                            <Button onClick={() => setSeed(randomSeed())}>New data</Button>
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                    </Group>
+                </>
+            }
+            readouts={
+                <p className="note">
+                    Each tree alone is jagged and overfit (left). Because every tree trains on a <strong>bootstrap</strong> resample and picks a random
+                    feature at each split, they make <em>different</em> mistakes, and the vote (right) averages them away.
+                </p>
+            }
+        />
     );
 }
 

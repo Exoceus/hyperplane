@@ -1,10 +1,11 @@
 import {useMemo, useState} from "react";
 import {Button, Legend, Meter, Player, Slider, Stat, Stats, Toggle} from "../../components/Controls";
-import {FigureLayout, Panel} from "../../components/Figure";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Panel} from "../../components/Figure";
+import {Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {Plot3D} from "../../components/Plot3D";
 import {hitPoint, setRow} from "../../lib/data";
 import {ease, fmt, lerp, useTimeline} from "../../lib/hooks";
@@ -100,68 +101,57 @@ function SquaresFigure({outlier = false, autoRun = false}: {outlier?: boolean; a
     };
 
     return (
-        <Instrument hint="Drag the handles on the line, or drag the points">
-            <FigureLayout
-                main={
-                    <>
-                    <Plot
-                        label="A line through data with squared residuals drawn as squares"
-                        view={SQ_VIEW}
-                        cursor={drag ? "grabbing" : "grab"}
-                        onPointer={onPointer}
-                        draw={(p) => {
-                            p.clear();
-                            p.grid(0.25);
-                            for (let i = 0; i < data.length; i += 2) {
-                                const x = data[i];
-                                const y = data[i + 1];
-                                const yh = m * x + b;
-                                const r = y - yh;
-                                if (showSquares) {
-                                    const side = Math.abs(r);
-                                    const dir = x + side > SQ_VIEW.xmax ? -1 : 1;
-                                    p.polyline([x, yh, x, y, x + dir * side, y, x + dir * side, yh], {
-                                        close: true,
-                                        fill: C.yellow,
-                                        fillAlpha: 0.13,
-                                        color: rgba(C.yellow, 0.55),
-                                        width: 1.2,
-                                    });
-                                }
-                                p.line(x, y, x, yh, {color: C.red, width: 2});
+        <Rig
+            hint="Drag the handles on the line, or drag the points"
+            visual={
+                <Plot
+                    label="A line through data with squared residuals drawn as squares"
+                    view={SQ_VIEW}
+                    cursor={drag ? "grabbing" : "grab"}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        p.grid(0.25);
+                        for (let i = 0; i < data.length; i += 2) {
+                            const x = data[i];
+                            const y = data[i + 1];
+                            const yh = m * x + b;
+                            const r = y - yh;
+                            if (showSquares) {
+                                const side = Math.abs(r);
+                                const dir = x + side > SQ_VIEW.xmax ? -1 : 1;
+                                p.polyline([x, yh, x, y, x + dir * side, y, x + dir * side, yh], {
+                                    close: true,
+                                    fill: C.yellow,
+                                    fillAlpha: 0.13,
+                                    color: rgba(C.yellow, 0.55),
+                                    width: 1.2,
+                                });
                             }
-                            p.infiniteLine(m, -1, b, {color: C.white, width: 2.5});
-                            for (const s of [0, 1]) {
-                                const x = s === 0 ? XL : XR;
-                                p.circle(x, m * x + b, 8, {fill: C.canvas, stroke: C.white, width: 2.5});
-                            }
-                            for (let i = 0; i < data.length; i += 2) p.point(data[i], data[i + 1], C.blue, {r: 5.5});
-                        }}
-                    />
-                    {run && (
-                        <Player
-                            timeline={tl}
-                            status={
-                                tl.atEnd ? (
-                                    <span className="c-green">Done: this is the least-squares line. No other line has less total area.</span>
-                                ) : (
-                                    <>Step {k}: each step nudges the slope and intercept downhill on the total area of the squares.</>
-                                )
-                            }
-                        />
-                    )}
-                    </>
-                }
-                side={
-                    <div className="controls">
-                        <Meter label="Total area of the squares" right={sse.toFixed(3)} value={sse} max={Math.max(sse, bestSse * 4)} color={C.yellow} />
-                        <Meter label="Smallest possible" right={bestSse.toFixed(3)} value={bestSse} max={Math.max(sse, bestSse * 4)} color={C.green} />
-                        <Stats>
-                            <Stat label="slope m" value={m.toFixed(2)} />
-                            <Stat label="intercept b" value={b.toFixed(2)} />
-                        </Stats>
-                        <Toggle label="Draw the squares" checked={showSquares} onChange={setShowSquares} />
-                        <div className="control-row">
+                            p.line(x, y, x, yh, {color: C.red, width: 2});
+                        }
+                        p.infiniteLine(m, -1, b, {color: C.white, width: 2.5});
+                        for (const s of [0, 1]) {
+                            const x = s === 0 ? XL : XR;
+                            p.circle(x, m * x + b, 8, {fill: C.canvas, stroke: C.white, width: 2.5});
+                        }
+                        for (let i = 0; i < data.length; i += 2) p.point(data[i], data[i + 1], C.blue, {r: 5.5});
+                    }}
+                />
+            }
+            caption={
+                run &&
+                (tl.atEnd ? (
+                    <span className="c-green">Done: this is the least-squares line. No other line has less total area.</span>
+                ) : (
+                    <>Step {k}: each step nudges the slope and intercept downhill on the total area of the squares.</>
+                ))
+            }
+            controls={
+                <>
+                    {run && <Player timeline={tl} />}
+                    <Group label="Fit">
+                        <Actions>
                             <Button variant="primary" onClick={() => startRun()}>
                                 Run gradient descent
                             </Button>
@@ -174,17 +164,28 @@ function SquaresFigure({outlier = false, autoRun = false}: {outlier?: boolean; a
                             >
                                 New points
                             </Button>
-                        </div>
-                        <Legend
-                            items={[
-                                {color: C.red, label: "residual", shape: "line"},
-                                {color: C.yellow, label: "residual²", shape: "square"},
-                            ]}
-                        />
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                        <Toggle label="Draw the squares" checked={showSquares} onChange={setShowSquares} />
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Meter label="Total area of the squares" right={sse.toFixed(3)} value={sse} max={Math.max(sse, bestSse * 4)} color={C.yellow} />
+                    <Meter label="Smallest possible" right={bestSse.toFixed(3)} value={bestSse} max={Math.max(sse, bestSse * 4)} color={C.green} />
+                    <Stats>
+                        <Stat label="slope m" value={m.toFixed(2)} />
+                        <Stat label="intercept b" value={b.toFixed(2)} />
+                    </Stats>
+                    <Legend
+                        items={[
+                            {color: C.red, label: "residual", shape: "line"},
+                            {color: C.yellow, label: "residual²", shape: "square"},
+                        ]}
+                    />
+                </>
+            }
+        />
     );
 }
 
@@ -265,77 +266,87 @@ function LandscapeFigure(props: {lr?: number; center?: boolean}) {
     };
 
     return (
-        <Instrument hint="Click or drag in parameter space to choose a starting line">
-            <div className="duo">
-                <Panel label="Data space" right={`ŷ = ${cur.m.toFixed(2)}x ${cur.b >= 0 ? "+" : "−"} ${Math.abs(cur.b).toFixed(2)}`}>
-                    <Plot
-                        label="Data and the current line"
-                        view={DATA_VIEW}
-                        draw={(p) => {
-                            p.clear();
-                            p.grid(0.25);
-                            p.ticks(1, 1);
-                            p.infiniteLine(best[0], -1, best[1], {color: C.green, width: 1.5, dash: [6, 6], alpha: 0.7});
-                            for (let i = 0; i < data.length; i += 2) {
-                                const yh = cur.m * data[i] + cur.b;
-                                p.line(data[i], data[i + 1], data[i], yh, {color: rgba(C.red, 0.6), width: 1.2});
-                            }
-                            p.infiniteLine(cur.m, -1, cur.b, {color: C.yellow, width: 2.5});
-                            for (let i = 0; i < data.length; i += 2) p.point(data[i], data[i + 1], C.blue, {r: 4});
-                            p.circle(0, cur.b, 5, {fill: C.yellow});
-                            p.text("b", 0, cur.b, {color: C.yellow, dx: -14, dy: 4, font: "serif", size: 15});
-                        }}
-                    />
-                </Panel>
-                <Panel label="Parameter space (m, b)" right={`loss ${fmt(loss, 3)}`}>
-                    <Plot
-                        label="Mean squared error as a function of slope and intercept"
-                        view={PARAM_VIEW}
-                        onPointer={onParam}
-                        cursor={dragging ? "grabbing" : "crosshair"}
-                        draw={(p) => {
-                            p.clear();
-                            p.image(surface.img, PARAM_VIEW);
-                            p.contours(surface.contours, () => ({color: "rgba(255,255,255,0.16)", width: 1}));
-                            p.grid(0.5, {majorEvery: 2});
-                            p.ticks(1, 1, {xLabel: "m", yLabel: "b"});
-                            const pts: number[] = [];
-                            for (let i = 0; i <= k; i++) pts.push(traj[3 * i], traj[3 * i + 1]);
-                            pts.push(cur.m, cur.b);
-                            p.polyline(pts, {color: C.yellow, width: 1.6, alpha: 0.9});
-                            for (let i = 0; i <= k; i++) p.circle(traj[3 * i], traj[3 * i + 1], 2.2, {fill: C.yellow, alpha: 0.7});
-                            // Star at the minimum.
-                            p.text("★", best[0], best[1], {color: C.green, size: 18, align: "center", baseline: "middle", halo: true});
-                            // Negative gradient arrow.
-                            const gn = Math.hypot(grad[0], grad[1]);
-                            if (gn > 1e-6) {
-                                const s = Math.min(0.5, gn * 0.12) / gn;
-                                p.arrow(cur.m, cur.b, cur.m - grad[0] * s, cur.b - grad[1] * s, {color: C.red, width: 2.5, head: 9});
-                            }
-                            p.circle(cur.m, cur.b, 6, {fill: C.yellow, stroke: C.canvas, width: 2});
-                            p.circle(start.m, start.b, 6, {stroke: C.white, width: 1.5, dash: [3, 3]});
-                        }}
-                    />
-                </Panel>
-            </div>
-            <div className="figure-layout" style={{marginTop: 14, "--side": "300px"} as React.CSSProperties}>
-                <div className="figure-main">
-                    <Player timeline={tl} status={diverged ? <span className="c-red">The steps overshoot the valley and the loss explodes, so lower the learning rate.</span> : undefined} />
-                    <LineChart label="Loss above the minimum, log scale" series={[{values: losses, color: C.yellow, upto: tl.t}]} logY height={120} xLabel="step" yLabel="L − L*  (log)" xMax={K} />
+        <Rig
+            hint="Click or drag in parameter space to choose a starting line"
+            visual={
+                <div className="duo">
+                    <Panel label="Data space" right={`ŷ = ${cur.m.toFixed(2)}x ${cur.b >= 0 ? "+" : "−"} ${Math.abs(cur.b).toFixed(2)}`}>
+                        <Plot
+                            label="Data and the current line"
+                            view={DATA_VIEW}
+                            draw={(p) => {
+                                p.clear();
+                                p.grid(0.25);
+                                p.ticks(1, 1);
+                                p.infiniteLine(best[0], -1, best[1], {color: C.green, width: 1.5, dash: [6, 6], alpha: 0.7});
+                                for (let i = 0; i < data.length; i += 2) {
+                                    const yh = cur.m * data[i] + cur.b;
+                                    p.line(data[i], data[i + 1], data[i], yh, {color: rgba(C.red, 0.6), width: 1.2});
+                                }
+                                p.infiniteLine(cur.m, -1, cur.b, {color: C.yellow, width: 2.5});
+                                for (let i = 0; i < data.length; i += 2) p.point(data[i], data[i + 1], C.blue, {r: 4});
+                                p.circle(0, cur.b, 5, {fill: C.yellow});
+                                p.text("b", 0, cur.b, {color: C.yellow, dx: -14, dy: 4, font: "serif", size: 15});
+                            }}
+                        />
+                    </Panel>
+                    <Panel label="Parameter space (m, b)" right={`loss ${fmt(loss, 3)}`}>
+                        <Plot
+                            label="Mean squared error as a function of slope and intercept"
+                            view={PARAM_VIEW}
+                            onPointer={onParam}
+                            cursor={dragging ? "grabbing" : "crosshair"}
+                            draw={(p) => {
+                                p.clear();
+                                p.image(surface.img, PARAM_VIEW);
+                                p.contours(surface.contours, () => ({color: "rgba(255,255,255,0.16)", width: 1}));
+                                p.grid(0.5, {majorEvery: 2});
+                                p.ticks(1, 1, {xLabel: "m", yLabel: "b"});
+                                const pts: number[] = [];
+                                for (let i = 0; i <= k; i++) pts.push(traj[3 * i], traj[3 * i + 1]);
+                                pts.push(cur.m, cur.b);
+                                p.polyline(pts, {color: C.yellow, width: 1.6, alpha: 0.9});
+                                for (let i = 0; i <= k; i++) p.circle(traj[3 * i], traj[3 * i + 1], 2.2, {fill: C.yellow, alpha: 0.7});
+                                // Star at the minimum.
+                                p.text("★", best[0], best[1], {color: C.green, size: 18, align: "center", baseline: "middle", halo: true});
+                                // Negative gradient arrow.
+                                const gn = Math.hypot(grad[0], grad[1]);
+                                if (gn > 1e-6) {
+                                    const s = Math.min(0.5, gn * 0.12) / gn;
+                                    p.arrow(cur.m, cur.b, cur.m - grad[0] * s, cur.b - grad[1] * s, {color: C.red, width: 2.5, head: 9});
+                                }
+                                p.circle(cur.m, cur.b, 6, {fill: C.yellow, stroke: C.canvas, width: 2});
+                                p.circle(start.m, start.b, 6, {stroke: C.white, width: 1.5, dash: [3, 3]});
+                            }}
+                        />
+                    </Panel>
                 </div>
-                <div className="figure-side">
-                    <Slider label="Learning rate η" value={lr} min={0.01} max={1.2} log onChange={(v) => (setLr(v), tl.reset())} color={C.yellow} format={(v) => v.toFixed(3)} />
-                    <Toggle label="Center the inputs (subtract the mean of x)" checked={center} onChange={(v) => (setCenter(v), tl.reset())} />
+            }
+            caption={diverged ? <span className="c-red">The steps overshoot the valley and the loss explodes, so lower the learning rate.</span> : undefined}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Gradient descent">
+                        <Slider label="Learning rate η" value={lr} min={0.01} max={1.2} log onChange={(v) => (setLr(v), tl.reset())} color={C.yellow} format={(v) => v.toFixed(3)} />
+                        <Toggle label="Center the inputs (subtract the mean of x)" checked={center} onChange={(v) => (setCenter(v), tl.reset())} />
+                    </Group>
+                    <Group label="Data">
+                        <Actions>
+                            <Button onClick={() => (setSeed(randomSeed()), tl.reset())}>New data</Button>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
                     <Stats>
                         <Stat label="step" value={k} />
                         <Stat label="steps to converge" value={converge ?? `> ${K}`} color={converge !== null ? C.green : C.red} />
                     </Stats>
-                    <div className="control-row">
-                        <Button onClick={() => (setSeed(randomSeed()), tl.reset())}>New data</Button>
-                    </div>
-                </div>
-            </div>
-        </Instrument>
+                    <LineChart label="Loss above the minimum, log scale" series={[{values: losses, color: C.yellow, upto: tl.t}]} logY height={120} xLabel="step" yLabel="L − L*  (log)" xMax={K} />
+                </>
+            }
+        />
     );
 }
 
@@ -382,61 +393,67 @@ function PlaneFigure() {
     const plane = (a: number, b: number) => (w1 * a + w2 * b + b0) * Z;
 
     return (
-        <Instrument hint="Drag to orbit · the plane tilts into place, one gradient step at a time">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot3D
-                            label="A plane fit to 3D points by gradient descent"
-                            initial={{pitch: 0.35, yaw: 0.9}}
-                            draw={(sc) => {
-                                sc.floor(-0.75, 1, 0.25);
-                                // The plane: translucent quads so points can show through.
-                                const g = 6;
-                                for (let i = 0; i < g; i++)
-                                    for (let j = 0; j < g; j++) {
-                                        const a0 = -1 + (2 * i) / g;
-                                        const a1 = -1 + (2 * (i + 1)) / g;
-                                        const c0 = -1 + (2 * j) / g;
-                                        const c1 = -1 + (2 * (j + 1)) / g;
-                                        sc.quad([a0, c0, plane(a0, c0)], [a1, c0, plane(a1, c0)], [a1, c1, plane(a1, c1)], [a0, c1, plane(a0, c1)], "rgba(255,216,102,1)", {
-                                            alpha: 0.16,
-                                            stroke: "rgba(255,216,102,0.5)",
-                                            width: 1,
-                                        });
-                                    }
-                                for (let i = 0; i < data.length; i += 3) {
-                                    const a = data[i];
-                                    const c = data[i + 1];
-                                    const y = data[i + 2] * Z;
-                                    sc.line([a, c, y], [a, c, plane(a, c)], C.red, 1.4, {alpha: 0.75});
-                                    sc.point([a, c, y], C.blue, 4.5);
-                                }
-                            }}
-                        />
-                        <Player timeline={tl} status={`Step ${k}: ŷ = ${w1.toFixed(2)}·x₁ ${w2 >= 0 ? "+" : "−"} ${Math.abs(w2).toFixed(2)}·x₂ ${b0 >= 0 ? "+" : "−"} ${Math.abs(b0).toFixed(2)}`} />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Drag to orbit · the plane tilts into place, one gradient step at a time"
+            visual={
+                <Plot3D
+                    label="A plane fit to 3D points by gradient descent"
+                    initial={{pitch: 0.35, yaw: 0.9}}
+                    draw={(sc) => {
+                        sc.floor(-0.75, 1, 0.25);
+                        // The plane: translucent quads so points can show through.
+                        const g = 6;
+                        for (let i = 0; i < g; i++)
+                            for (let j = 0; j < g; j++) {
+                                const a0 = -1 + (2 * i) / g;
+                                const a1 = -1 + (2 * (i + 1)) / g;
+                                const c0 = -1 + (2 * j) / g;
+                                const c1 = -1 + (2 * (j + 1)) / g;
+                                sc.quad([a0, c0, plane(a0, c0)], [a1, c0, plane(a1, c0)], [a1, c1, plane(a1, c1)], [a0, c1, plane(a0, c1)], "rgba(255,216,102,1)", {
+                                    alpha: 0.16,
+                                    stroke: "rgba(255,216,102,0.5)",
+                                    width: 1,
+                                });
+                            }
+                        for (let i = 0; i < data.length; i += 3) {
+                            const a = data[i];
+                            const c = data[i + 1];
+                            const y = data[i + 2] * Z;
+                            sc.line([a, c, y], [a, c, plane(a, c)], C.red, 1.4, {alpha: 0.75});
+                            sc.point([a, c, y], C.blue, 4.5);
+                        }
+                    }}
+                />
+            }
+            caption={`Step ${k}: ŷ = ${w1.toFixed(2)}·x₁ ${w2 >= 0 ? "+" : "−"} ${Math.abs(w2).toFixed(2)}·x₂ ${b0 >= 0 ? "+" : "−"} ${Math.abs(b0).toFixed(2)}`}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Gradient descent">
                         <Slider label="Learning rate η" value={lr} min={0.02} max={1} log onChange={setLr} color={C.yellow} format={(v) => v.toFixed(3)} />
+                    </Group>
+                    <Group label="Data">
                         <Slider label="noise" value={noise} min={0} max={0.4} onChange={setNoise} />
-                        <Stats>
-                            <Stat label="step" value={k} />
-                            <Stat label="mean squared error" value={fmt(losses[k], 4)} color={C.red} />
-                        </Stats>
-                        <LineChart label="Loss over gradient-descent steps" series={[{values: losses, color: C.red, upto: tl.t}]} height={90} logY xLabel="step" />
-                        <p className="note">
-                            With two inputs the model is a plane, <M>{"\\hat y = w_1 x_1 + w_2 x_2 + b"}</M>, and the red sticks are the residuals. The
-                            algorithm is the same as for a line, only the bowl now lives in three parameters.
-                        </p>
-                        <div className="control-row">
+                        <Actions>
                             <Button onClick={() => setSeed(randomSeed())}>New data</Button>
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="step" value={k} />
+                        <Stat label="mean squared error" value={fmt(losses[k], 4)} color={C.red} />
+                    </Stats>
+                    <LineChart label="Loss over gradient-descent steps" series={[{values: losses, color: C.red, upto: tl.t}]} height={90} logY xLabel="step" />
+                    <p className="note">
+                        With two inputs the model is a plane, <M>{"\\hat y = w_1 x_1 + w_2 x_2 + b"}</M>, and the red sticks are the residuals. The
+                        algorithm is the same as for a line, only the bowl now lives in three parameters.
+                    </p>
+                </>
+            }
+        />
     );
 }
 

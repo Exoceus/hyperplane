@@ -1,10 +1,11 @@
 import {useMemo, useState} from "react";
 import {Button, Player, Segmented, Slider, Stat, Stats} from "../../components/Controls";
-import {FigureLayout, Panel} from "../../components/Figure";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Panel} from "../../components/Figure";
+import {Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {classRegionColor} from "../../lib/colors";
 import {ease, lerp, useTimeline} from "../../lib/hooks";
 import {heatImage, type Painter, type View} from "../../lib/painter";
@@ -141,65 +142,67 @@ function LloydFigure(props: {kind?: Kind; blobs?: number; k?: number; method?: n
     };
 
     return (
-        <Instrument hint="Drag any ✛ centroid to rerun from a new starting point">
-            <FigureLayout
-                main={
-                    <>
-                        <Plot
-                            label="k-means clustering step by step"
-                            view={VIEW}
-                            maxHeight={580}
-                            cursor={drag !== null ? "grabbing" : tl.t === 0 ? "grab" : "default"}
-                            onPointer={onPointer}
-                            draw={(p) => {
-                                p.clear();
-                                if (phase !== "init") p.image(regions, VIEW, false, phase === "assign" ? ease(f * 1.5) : 1);
-                                p.grid(0.25, {axes: false});
-                                // Pull lines during the update phase.
-                                if (phase === "update" && assign) {
-                                    const alpha = 0.35 * Math.sin(Math.PI * Math.min(1, f * 1.2));
-                                    for (let i = 0; i < n; i++) {
-                                        const c = assign[i];
-                                        p.line(data[3 * i], data[3 * i + 1], centroids[2 * c], centroids[2 * c + 1], {color: classColor(c), width: 1, alpha});
-                                    }
-                                }
-                                for (let i = 0; i < n; i++) {
-                                    const now = assign ? classColor(assign[i]) : C.muted;
-                                    const before = prevAssign ? classColor(prevAssign[i]) : C.muted;
-                                    const changed = recolor < 1 && now !== before;
-                                    p.point(data[3 * i], data[3 * i + 1], changed && recolor < 0.5 ? before : now, {r: 3.8, alpha: changed ? Math.abs(recolor - 0.5) * 2 : 1});
-                                }
-                                // Faint trail of each centroid's path so far.
-                                const upto = phase === "update" ? iter : Math.max(0, iter);
-                                for (let c = 0; c < k; c++) {
-                                    const trail: number[] = [];
-                                    for (let i = 0; i <= upto; i++) trail.push(run.centroids[i * k * 2 + 2 * c], run.centroids[i * k * 2 + 2 * c + 1]);
-                                    trail.push(centroids[2 * c], centroids[2 * c + 1]);
-                                    p.polyline(trail, {color: rgba(classColor(c), 0.5), width: 1.5, dash: [3, 4]});
-                                }
-                                for (let c = 0; c < k; c++) drawCentroid(p, centroids[2 * c], centroids[2 * c + 1], classColor(c), drag === c);
-                            }}
-                        />
-                        <Player
-                            timeline={tl}
-                            status={
-                                tl.atEnd && L > 0 ? (
-                                    <span className="c-green">
-                                        {run.converged ? `Converged after ${T} iterations: the assignments stopped changing.` : `Stopped after ${T} iterations.`}
-                                    </span>
-                                ) : (
-                                    statusText
-                                )
+        <Rig
+            hint="Drag any ✛ centroid to rerun from a new starting point"
+            visual={
+                <Plot
+                    label="k-means clustering step by step"
+                    view={VIEW}
+                    maxHeight={580}
+                    cursor={drag !== null ? "grabbing" : tl.t === 0 ? "grab" : "default"}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        if (phase !== "init") p.image(regions, VIEW, false, phase === "assign" ? ease(f * 1.5) : 1);
+                        p.grid(0.25, {axes: false});
+                        // Pull lines during the update phase.
+                        if (phase === "update" && assign) {
+                            const alpha = 0.35 * Math.sin(Math.PI * Math.min(1, f * 1.2));
+                            for (let i = 0; i < n; i++) {
+                                const c = assign[i];
+                                p.line(data[3 * i], data[3 * i + 1], centroids[2 * c], centroids[2 * c + 1], {color: classColor(c), width: 1, alpha});
                             }
-                        />
-                    </>
-                }
-                side={
-                    <div className="controls">
+                        }
+                        for (let i = 0; i < n; i++) {
+                            const now = assign ? classColor(assign[i]) : C.muted;
+                            const before = prevAssign ? classColor(prevAssign[i]) : C.muted;
+                            const changed = recolor < 1 && now !== before;
+                            p.point(data[3 * i], data[3 * i + 1], changed && recolor < 0.5 ? before : now, {r: 3.8, alpha: changed ? Math.abs(recolor - 0.5) * 2 : 1});
+                        }
+                        // Faint trail of each centroid's path so far.
+                        const upto = phase === "update" ? iter : Math.max(0, iter);
+                        for (let c = 0; c < k; c++) {
+                            const trail: number[] = [];
+                            for (let i = 0; i <= upto; i++) trail.push(run.centroids[i * k * 2 + 2 * c], run.centroids[i * k * 2 + 2 * c + 1]);
+                            trail.push(centroids[2 * c], centroids[2 * c + 1]);
+                            p.polyline(trail, {color: rgba(classColor(c), 0.5), width: 1.5, dash: [3, 4]});
+                        }
+                        for (let c = 0; c < k; c++) drawCentroid(p, centroids[2 * c], centroids[2 * c + 1], classColor(c), drag === c);
+                    }}
+                />
+            }
+            caption={
+                tl.atEnd && L > 0 ? (
+                    <span className="c-green">
+                        {run.converged ? `Converged after ${T} iterations: the assignments stopped changing.` : `Stopped after ${T} iterations.`}
+                    </span>
+                ) : (
+                    statusText
+                )
+            }
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Segmented value={kind} onChange={(v) => (setKind(v), setManual(null), tl.reset())} options={KINDS} />
                         {kind === "blobs" && (
                             <Slider label="hidden blobs in the data" value={blobs} min={2} max={6} step={1} onChange={(v) => (setBlobs(v), setManual(null), tl.reset())} format={(v) => v.toFixed(0)} />
                         )}
+                        <Actions>
+                            <Button onClick={() => (setSeed(randomSeed()), setManual(null), tl.reset())}>New data</Button>
+                        </Actions>
+                    </Group>
+                    <Group label="k-means">
                         <Slider label={<>clusters <M>{"k"}</M></>} value={k} min={1} max={8} step={1} onChange={(v) => (setK(v), setManual(null), tl.reset())} format={(v) => v.toFixed(0)} color={C.yellow} />
                         <Segmented
                             label="initialization"
@@ -211,27 +214,30 @@ function LloydFigure(props: {kind?: Kind; blobs?: number; k?: number; method?: n
                                 {value: 1, label: "k-means++", title: "spread-out data points"},
                             ]}
                         />
-                        <Stats>
-                            <Stat label="iteration" value={phase === "init" ? "—" : iter + 1} />
-                            <Stat label="inertia J" value={inertiaNow === null ? "—" : inertiaNow.toFixed(2)} color={C.yellow} />
-                        </Stats>
-                        <LineChart
-                            label="Inertia after every phase"
-                            series={[{values: run.inertia, color: C.yellow, x0: 1, upto: Math.max(0, tl.t - 1), dots: true}]}
-                            height={100}
-                            xMin={1}
-                            xMax={Math.max(2, L)}
-                            xLabel="phase"
-                            yLabel="J"
-                        />
-                        <div className="control-row">
+                        <Actions>
                             <Button onClick={reinit}>Re-initialize</Button>
-                            <Button onClick={() => (setSeed(randomSeed()), setManual(null), tl.reset())}>New data</Button>
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="iteration" value={phase === "init" ? "—" : iter + 1} />
+                        <Stat label="inertia J" value={inertiaNow === null ? "—" : inertiaNow.toFixed(2)} color={C.yellow} />
+                    </Stats>
+                    <LineChart
+                        label="Inertia after every phase"
+                        series={[{values: run.inertia, color: C.yellow, x0: 1, upto: Math.max(0, tl.t - 1), dots: true}]}
+                        height={100}
+                        xMin={1}
+                        xMax={Math.max(2, L)}
+                        xLabel="phase"
+                        yLabel="J"
+                    />
+                </>
+            }
+        />
     );
 }
 
@@ -263,42 +269,47 @@ function ElbowFigure() {
     }, [data, k, seed]);
 
     return (
-        <Instrument hint="Click the curve to choose k">
-            <div className="duo">
-                <Panel label={`k = ${k}`} right={`J = ${fit.j.toFixed(2)}`}>
-                    <Plot
-                        label="Best k-means clustering for the chosen k"
-                        view={VIEW}
-                        draw={(p) => {
-                            p.clear();
-                            p.grid(0.25, {axes: false});
-                            const n = data.length / 3;
-                            for (let i = 0; i < n; i++) p.point(data[3 * i], data[3 * i + 1], classColor(fit.assign[i]), {r: 3.6});
-                            for (let c = 0; c < k; c++) drawCentroid(p, fit.centroids[2 * c], fit.centroids[2 * c + 1], classColor(c));
-                        }}
-                    />
-                </Panel>
-                <Panel label="Inertia vs. k (best of 6 runs)">
-                    <LineChart
-                        label="Elbow curve"
-                        series={[{values: elbow, color: C.yellow, x0: 1, dots: true}]}
-                        height={300}
-                        xMin={1}
-                        xMax={KMAX}
-                        yMin={0}
-                        marker={k}
-                        xLabel="k"
-                        onPick={(x) => setK(Math.max(1, Math.min(KMAX, Math.round(x))))}
-                    />
-                    <div className="controls" style={{marginTop: 10}}>
-                        <Slider label="clusters actually in the data" value={truth} min={1} max={7} step={1} onChange={setTruth} format={(v) => v.toFixed(0)} />
-                        <div className="control-row">
-                            <Button onClick={() => setSeed(randomSeed())}>New data</Button>
-                        </div>
-                    </div>
-                </Panel>
-            </div>
-        </Instrument>
+        <Rig
+            hint="Click the curve to choose k"
+            visual={
+                <div className="duo">
+                    <Panel label={`k = ${k}`} right={`J = ${fit.j.toFixed(2)}`}>
+                        <Plot
+                            label="Best k-means clustering for the chosen k"
+                            view={VIEW}
+                            draw={(p) => {
+                                p.clear();
+                                p.grid(0.25, {axes: false});
+                                const n = data.length / 3;
+                                for (let i = 0; i < n; i++) p.point(data[3 * i], data[3 * i + 1], classColor(fit.assign[i]), {r: 3.6});
+                                for (let c = 0; c < k; c++) drawCentroid(p, fit.centroids[2 * c], fit.centroids[2 * c + 1], classColor(c));
+                            }}
+                        />
+                    </Panel>
+                    <Panel label="Inertia vs. k (best of 6 runs)">
+                        <LineChart
+                            label="Elbow curve"
+                            series={[{values: elbow, color: C.yellow, x0: 1, dots: true}]}
+                            height={300}
+                            xMin={1}
+                            xMax={KMAX}
+                            yMin={0}
+                            marker={k}
+                            xLabel="k"
+                            onPick={(x) => setK(Math.max(1, Math.min(KMAX, Math.round(x))))}
+                        />
+                    </Panel>
+                </div>
+            }
+            controls={
+                <Group label="Data">
+                    <Slider label="clusters actually in the data" value={truth} min={1} max={7} step={1} onChange={setTruth} format={(v) => v.toFixed(0)} />
+                    <Actions>
+                        <Button onClick={() => setSeed(randomSeed())}>New data</Button>
+                    </Actions>
+                </Group>
+            }
+        />
     );
 }
 

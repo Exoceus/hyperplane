@@ -1,9 +1,9 @@
 import {useMemo, useState} from "react";
 import {Button, Player, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
-import {FigureLayout} from "../../components/Figure";
 import {M, MathBlock} from "../../components/Math";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {useTimeline} from "../../lib/hooks";
 import type {View} from "../../lib/painter";
 import {C, classColor, rgba} from "../../lib/theme";
@@ -96,89 +96,91 @@ function DbscanInstrument(props: {kind?: Kind; eps?: number; minPts?: number}) {
     };
 
     return (
-        <Instrument hint="Clusters spread from core point to core point · change ε or minPts to rerun">
-            <FigureLayout
-                sideWidth={300}
-                main={
-                    <>
-                        <Plot
-                            label="DBSCAN clustering"
-                            view={VIEW}
-                            maxHeight={580}
-                            draw={(p) => {
-                                p.clear();
-                                p.grid(0.25, {axes: false});
-                                if (showEps)
-                                    for (let i = 0; i < n; i++)
-                                        if (run.kinds[i] === 2) p.circle(data[3 * i], data[3 * i + 1], eps * p.kx, {fill: rgba(classColor(run.labels[i] + 1), 0.05), stroke: rgba(classColor(run.labels[i] + 1), 0.18), width: 1});
-                                // Expansion edges.
-                                for (let e = 0; e < Math.min(shown, events); e++) {
-                                    const parent = run.order[3 * e + 2];
-                                    if (parent < 0) continue;
-                                    const i = run.order[3 * e];
-                                    p.line(data[3 * parent], data[3 * parent + 1], data[3 * i], data[3 * i + 1], {color: rgba(classColor(run.order[3 * e + 1] + 1), 0.35), width: 1});
-                                }
-                                for (let i = 0; i < n; i++) {
-                                    const x = data[3 * i];
-                                    const y = data[3 * i + 1];
-                                    if (now[i] >= 0) {
-                                        const col = classColor(now[i] + 1);
-                                        if (run.kinds[i] === 2) p.point(x, y, col, {r: 4.2});
-                                        else p.circle(x, y, 3.6, {fill: C.canvas, stroke: col, width: 2});
-                                    } else if (done && run.kinds[i] === 0) {
-                                        const s = 3.5 / p.kx;
-                                        p.line(x - s, y - s, x + s, y + s, {color: NOISE, width: 1.6});
-                                        p.line(x - s, y + s, x + s, y - s, {color: NOISE, width: 1.6});
-                                    } else p.circle(x, y, 2.8, {fill: rgba(C.muted, 0.55)});
-                                }
-                                if (latest >= 0 && !done) p.circle(data[3 * latest], data[3 * latest + 1], eps * p.kx, {stroke: C.yellow, width: 1.6, dash: [4, 4]});
-                            }}
-                        />
-                        <Player
-                            timeline={tl}
-                            status={done ? `${run.clusters} clusters · ${cores} core · ${n - cores - noise} border · ${noise} noise points` : `${shown} of ${events} points reached`}
-                        />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Clusters spread from core point to core point · change ε or minPts to rerun"
+            visual={
+                <Plot
+                    label="DBSCAN clustering"
+                    view={VIEW}
+                    maxHeight={580}
+                    draw={(p) => {
+                        p.clear();
+                        p.grid(0.25, {axes: false});
+                        if (showEps)
+                            for (let i = 0; i < n; i++)
+                                if (run.kinds[i] === 2) p.circle(data[3 * i], data[3 * i + 1], eps * p.kx, {fill: rgba(classColor(run.labels[i] + 1), 0.05), stroke: rgba(classColor(run.labels[i] + 1), 0.18), width: 1});
+                        // Expansion edges.
+                        for (let e = 0; e < Math.min(shown, events); e++) {
+                            const parent = run.order[3 * e + 2];
+                            if (parent < 0) continue;
+                            const i = run.order[3 * e];
+                            p.line(data[3 * parent], data[3 * parent + 1], data[3 * i], data[3 * i + 1], {color: rgba(classColor(run.order[3 * e + 1] + 1), 0.35), width: 1});
+                        }
+                        for (let i = 0; i < n; i++) {
+                            const x = data[3 * i];
+                            const y = data[3 * i + 1];
+                            if (now[i] >= 0) {
+                                const col = classColor(now[i] + 1);
+                                if (run.kinds[i] === 2) p.point(x, y, col, {r: 4.2});
+                                else p.circle(x, y, 3.6, {fill: C.canvas, stroke: col, width: 2});
+                            } else if (done && run.kinds[i] === 0) {
+                                const s = 3.5 / p.kx;
+                                p.line(x - s, y - s, x + s, y + s, {color: NOISE, width: 1.6});
+                                p.line(x - s, y + s, x + s, y - s, {color: NOISE, width: 1.6});
+                            } else p.circle(x, y, 2.8, {fill: rgba(C.muted, 0.55)});
+                        }
+                        if (latest >= 0 && !done) p.circle(data[3 * latest], data[3 * latest + 1], eps * p.kx, {stroke: C.yellow, width: 1.6, dash: [4, 4]});
+                    }}
+                />
+            }
+            caption={done ? `${run.clusters} clusters · ${cores} core · ${n - cores - noise} border · ${noise} noise points` : `${shown} of ${events} points reached`}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Segmented value={kind} onChange={(v) => (setKind(v), reset())} options={KINDS} />
+                        <Actions>
+                            <Button onClick={() => (setSeed(randomSeed()), reset())}>New data</Button>
+                        </Actions>
+                    </Group>
+                    <Group label="DBSCAN">
                         <Slider label={<>radius <M>{"\\varepsilon"}</M></>} value={eps} min={0.02} max={0.5} onChange={(v) => (setEps(v), reset())} color={C.yellow} format={(v) => v.toFixed(3)} />
                         <Slider label="min points (incl. itself)" value={minPts} min={2} max={20} step={1} onChange={(v) => (setMinPts(v), reset())} format={(v) => v.toFixed(0)} />
                         <Toggle label="Show ε-neighborhoods of core points" checked={showEps} onChange={setShowEps} />
-                        <div className="panel-label">
-                            <span>k-distance · click to set the radius</span>
-                        </div>
-                        <Plot
-                            label="Sorted distance to the k-th nearest neighbour"
-                            view={{xmin: 0, xmax: kd.length, ymin: 0, ymax: Math.max(kdMax, eps) * 1.12}}
-                            height={110}
-                            cursor="row-resize"
-                            onPointer={onKd}
-                            draw={(p) => {
-                                p.clear();
-                                const pts: number[] = [];
-                                kd.forEach((v, i) => pts.push(i, v));
-                                p.polyline(pts, {color: C.text2, width: 2});
-                                p.line(0, eps, kd.length, eps, {color: C.yellow, width: 1.5, dash: [4, 4]});
-                                p.textPx(`ε = ${eps.toFixed(3)}`, p.width - 6, p.sy(eps) - 5, {color: C.yellow, size: 10.5, align: "right", font: "mono"});
-                            }}
-                        />
-                        <Stats>
-                            <Stat label="clusters" value={run.clusters} color={C.green} />
-                            <Stat label="noise" value={noise} />
-                        </Stats>
-                        <p className="note">
-                            <span className="c-blue">●</span> core · <span className="c-blue">○</span> border · <span style={{color: NOISE}}>×</span> noise.
-                            Points above the yellow line in the k-distance plot will be noise.
-                        </p>
-                        <div className="control-row">
-                            <Button onClick={() => (setSeed(randomSeed()), reset())}>New data</Button>
-                        </div>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="clusters" value={run.clusters} color={C.green} />
+                        <Stat label="noise" value={noise} />
+                    </Stats>
+                    <div className="panel-label">
+                        <span>k-distance · click to set the radius</span>
                     </div>
-                }
-            />
-        </Instrument>
+                    <Plot
+                        label="Sorted distance to the k-th nearest neighbour"
+                        view={{xmin: 0, xmax: kd.length, ymin: 0, ymax: Math.max(kdMax, eps) * 1.12}}
+                        height={110}
+                        cursor="row-resize"
+                        onPointer={onKd}
+                        draw={(p) => {
+                            p.clear();
+                            const pts: number[] = [];
+                            kd.forEach((v, i) => pts.push(i, v));
+                            p.polyline(pts, {color: C.text2, width: 2});
+                            p.line(0, eps, kd.length, eps, {color: C.yellow, width: 1.5, dash: [4, 4]});
+                            p.textPx(`ε = ${eps.toFixed(3)}`, p.width - 6, p.sy(eps) - 5, {color: C.yellow, size: 10.5, align: "right", font: "mono"});
+                        }}
+                    />
+                    <p className="note">
+                        <span className="c-blue">●</span> core · <span className="c-blue">○</span> border · <span style={{color: NOISE}}>×</span> noise.
+                        Points above the yellow line in the k-distance plot will be noise.
+                    </p>
+                </>
+            }
+        />
     );
 }
 

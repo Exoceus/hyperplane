@@ -27,8 +27,24 @@ export default function PlaygroundPage() {
                     <span aria-hidden>/</span>
                     <span>{category?.title}</span>
                 </div>
-                <h1>{meta.title}</h1>
-                <p className="pg-tagline">{meta.tagline}</p>
+                <div className="pg-title-row">
+                    <div>
+                        <h1>{meta.title}</h1>
+                        <p className="pg-tagline">{meta.tagline}</p>
+                    </div>
+                    <nav className="pg-step" aria-label="Previous and next playground">
+                        {prev ? (
+                            <Link to={`/play/${prev.slug}`} className="pg-step-link" title={`Previous: ${prev.title}`}>
+                                ← <span>{prev.title}</span>
+                            </Link>
+                        ) : null}
+                        {next ? (
+                            <Link to={`/play/${next.slug}`} className="pg-step-link" title={`Next: ${next.title}`}>
+                                <span>{next.title}</span> →
+                            </Link>
+                        ) : null}
+                    </nav>
+                </div>
             </header>
             <Suspense fallback={<Loading label="Loading playground" />}>
                 <Body key={slug} />

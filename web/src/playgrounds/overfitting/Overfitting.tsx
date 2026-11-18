@@ -1,10 +1,10 @@
 import {useMemo, useState} from "react";
 import {Button, Player, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
-import {FigureLayout} from "../../components/Figure";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {hitPoint, setRow} from "../../lib/data";
 import {fmt, lerp, useTimeline} from "../../lib/hooks";
 import type {View} from "../../lib/painter";
@@ -61,79 +61,78 @@ function PolyInstrument(props: {degree?: number; n?: number; penalty?: number; l
     };
 
     return (
-        <Instrument hint="Drag the blue training points · hollow circles are fresh test points the model never sees">
-            <FigureLayout
-                sideWidth={310}
-                main={
-                    <>
-                        <Plot
-                            label="Polynomial fit to noisy data"
-                            view={VIEW}
-                            aspect={0.62}
-                            cursor={drag !== null ? "grabbing" : "default"}
-                            onPointer={onPointer}
-                            draw={(p) => {
-                                p.clear();
-                                p.grid(0.25);
-                                const t: number[] = [];
-                                for (let i = 0; i <= 200; i++) {
-                                    const x = -1 + (2 * i) / 200;
-                                    t.push(x, truth(x));
-                                }
-                                p.polyline(t, {color: rgba(C.green, 0.55), width: 1.5, dash: [6, 6]});
-                                if (showTest) for (let i = 0; i < test.length; i += 2) p.circle(test[i], test[i + 1], 2.6, {stroke: rgba(C.muted, 0.6), width: 1});
-                                p.polyline(curve, {color: C.yellow, width: 2.8});
-                                for (let i = 0; i < train.length; i += 2) p.point(train[i], train[i + 1], C.blue, {r: 5});
-                            }}
-                        />
-                        <div className="duo">
-                            <div>
-                                <div className="panel-label">
-                                    <span>Error vs. degree (log)</span>
-                                </div>
-                                <LineChart
-                                    label="Training and test error for each polynomial degree"
-                                    series={[
-                                        {values: errors.tr, color: C.muted, dash: [4, 3]},
-                                        {values: errors.te, color: C.green},
-                                    ]}
-                                    height={110}
-                                    logY
-                                    marker={degree}
-                                    xLabel="degree"
-                                    onPick={(x) => setDegree(Math.max(0, Math.min(MAX_DEGREE, Math.round(x))))}
-                                />
+        <Rig
+            hint="Drag the blue training points · hollow circles are fresh test points the model never sees"
+            visual={
+                <>
+                    <Plot
+                        label="Polynomial fit to noisy data"
+                        view={VIEW}
+                        aspect={0.62}
+                        cursor={drag !== null ? "grabbing" : "default"}
+                        onPointer={onPointer}
+                        draw={(p) => {
+                            p.clear();
+                            p.grid(0.25);
+                            const t: number[] = [];
+                            for (let i = 0; i <= 200; i++) {
+                                const x = -1 + (2 * i) / 200;
+                                t.push(x, truth(x));
+                            }
+                            p.polyline(t, {color: rgba(C.green, 0.55), width: 1.5, dash: [6, 6]});
+                            if (showTest) for (let i = 0; i < test.length; i += 2) p.circle(test[i], test[i + 1], 2.6, {stroke: rgba(C.muted, 0.6), width: 1});
+                            p.polyline(curve, {color: C.yellow, width: 2.8});
+                            for (let i = 0; i < train.length; i += 2) p.point(train[i], train[i + 1], C.blue, {r: 5});
+                        }}
+                    />
+                    <div className="duo">
+                        <div>
+                            <div className="panel-label">
+                                <span>Error vs. degree (log)</span>
                             </div>
-                            <div>
-                                <div className="panel-label">
-                                    <span>Coefficients (symlog)</span>
-                                </div>
-                                <Plot
-                                    label="Polynomial coefficients"
-                                    view={{xmin: -0.7, xmax: MAX_DEGREE + 0.7, ymin: -4.2, ymax: 4.2}}
-                                    height={110}
-                                    draw={(p) => {
-                                        p.clear();
-                                        p.line(-0.7, 0, MAX_DEGREE + 0.7, 0, {color: C.axis, width: 1});
-                                        for (let k = 0; k < coefs.length; k++) {
-                                            const c = coefs[k];
-                                            const h = Math.sign(c) * Math.log10(1 + Math.abs(c) * 100);
-                                            if (c === 0) {
-                                                p.circle(k, 0, 2.5, {stroke: C.muted, width: 1});
-                                                continue;
-                                            }
-                                            p.polyline([k - 0.32, 0, k + 0.32, 0, k + 0.32, h, k - 0.32, h], {close: true, fill: c > 0 ? C.blue : C.orange, color: "none"});
-                                        }
-                                    }}
-                                />
-                            </div>
+                            <LineChart
+                                label="Training and test error for each polynomial degree"
+                                series={[
+                                    {values: errors.tr, color: C.muted, dash: [4, 3]},
+                                    {values: errors.te, color: C.green},
+                                ]}
+                                height={110}
+                                logY
+                                marker={degree}
+                                xLabel="degree"
+                                onPick={(x) => setDegree(Math.max(0, Math.min(MAX_DEGREE, Math.round(x))))}
+                            />
                         </div>
-                    </>
-                }
-                side={
-                    <div className="controls">
+                        <div>
+                            <div className="panel-label">
+                                <span>Coefficients (symlog)</span>
+                            </div>
+                            <Plot
+                                label="Polynomial coefficients"
+                                view={{xmin: -0.7, xmax: MAX_DEGREE + 0.7, ymin: -4.2, ymax: 4.2}}
+                                height={110}
+                                draw={(p) => {
+                                    p.clear();
+                                    p.line(-0.7, 0, MAX_DEGREE + 0.7, 0, {color: C.axis, width: 1});
+                                    for (let k = 0; k < coefs.length; k++) {
+                                        const c = coefs[k];
+                                        const h = Math.sign(c) * Math.log10(1 + Math.abs(c) * 100);
+                                        if (c === 0) {
+                                            p.circle(k, 0, 2.5, {stroke: C.muted, width: 1});
+                                            continue;
+                                        }
+                                        p.polyline([k - 0.32, 0, k + 0.32, 0, k + 0.32, h, k - 0.32, h], {close: true, fill: c > 0 ? C.blue : C.orange, color: "none"});
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+                </>
+            }
+            controls={
+                <>
+                    <Group label="Model">
                         <Slider label="polynomial degree" value={degree} min={0} max={MAX_DEGREE} step={1} onChange={setDegree} format={(v) => v.toFixed(0)} color={C.yellow} />
-                        <Slider label="training points" value={n} min={6} max={200} step={1} onChange={setN} format={(v) => v.toFixed(0)} color={C.blue} />
                         <Segmented
                             label="regularization"
                             value={penalty}
@@ -147,20 +146,25 @@ function PolyInstrument(props: {degree?: number; n?: number; penalty?: number; l
                         {penalty >= 0 && (
                             <Slider label={<>strength <M>{"\\lambda"}</M></>} value={lambda} min={1e-6} max={1} log onChange={setLambda} color={C.purple} format={(v) => v.toExponential(1)} />
                         )}
+                    </Group>
+                    <Group label="Data">
+                        <Slider label="training points" value={n} min={6} max={200} step={1} onChange={setN} format={(v) => v.toFixed(0)} color={C.blue} />
                         <Toggle label="Show test points" checked={showTest} onChange={setShowTest} />
-                        <Stats>
-                            <Stat label="train error" value={fmt(errors.tr[degree] - 1e-5, 4)} />
-                            <Stat label="test error" value={fmt(errors.te[degree] - 1e-5, 4)} color={C.green} />
-                            <Stat label="‖coefficients‖" value={fmt(norm, 2)} color={C.yellow} />
-                            <Stat label="zero coefficients" value={Array.from(coefs).slice(1).filter((c) => c === 0).length} />
-                        </Stats>
-                        <div className="control-row">
+                        <Actions>
                             <Button onClick={() => (setSeed(randomSeed()), setEdits(null))}>New sample</Button>
-                        </div>
-                    </div>
-                }
-            />
-        </Instrument>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <Stats>
+                    <Stat label="train error" value={fmt(errors.tr[degree] - 1e-5, 4)} />
+                    <Stat label="test error" value={fmt(errors.te[degree] - 1e-5, 4)} color={C.green} />
+                    <Stat label="‖coefficients‖" value={fmt(norm, 2)} color={C.yellow} />
+                    <Stat label="zero coefficients" value={Array.from(coefs).slice(1).filter((c) => c === 0).length} />
+                </Stats>
+            }
+        />
     );
 }
 
@@ -205,57 +209,60 @@ function GeometryInstrument(props: {norm?: number}) {
     };
 
     return (
-        <Instrument hint="Drag the yellow star: the best coefficients if there were no penalty">
-            <FigureLayout
-                main={
-                    <Plot
-                        label="Loss contours meeting an L1 or L2 constraint region"
-                        view={GVIEW}
-                        maxHeight={560}
-                        cursor={drag ? "grabbing" : "default"}
-                        onPointer={onPointer}
-                        draw={(p) => {
-                            p.clear();
-                            p.grid(0.5, {majorEvery: 2});
-                            p.ticks(1, 1, {xLabel: "w₁", yLabel: "w₂"});
-                            p.contours(contours, () => ({color: rgba(C.purple, 0.45), width: 1.2}));
-                            if (norm === 1) p.polyline([t, 0, 0, t, -t, 0, 0, -t], {close: true, fill: C.blue, fillAlpha: 0.16, color: C.blue, width: 2});
-                            else p.circle(0, 0, t * p.kx, {fill: "rgba(88,196,221,0.16)", stroke: C.blue, width: 2});
-                            p.contours(touching, () => ({color: C.yellow, width: 2}));
-                            p.line(c.x, c.y, w[0], w[1], {color: rgba(C.white, 0.4), width: 1, dash: [3, 4]});
-                            p.text("★", c.x, c.y, {color: C.yellow, size: 22, align: "center", baseline: "middle"});
-                            p.circle(w[0], w[1], 7, {fill: sparse ? C.green : C.white, stroke: C.canvas, width: 2.5});
-                        }}
+        <Rig
+            hint="Drag the yellow star: the best coefficients if there were no penalty"
+            visual={
+                <Plot
+                    label="Loss contours meeting an L1 or L2 constraint region"
+                    view={GVIEW}
+                    maxHeight={560}
+                    cursor={drag ? "grabbing" : "default"}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        p.grid(0.5, {majorEvery: 2});
+                        p.ticks(1, 1, {xLabel: "w₁", yLabel: "w₂"});
+                        p.contours(contours, () => ({color: rgba(C.purple, 0.45), width: 1.2}));
+                        if (norm === 1) p.polyline([t, 0, 0, t, -t, 0, 0, -t], {close: true, fill: C.blue, fillAlpha: 0.16, color: C.blue, width: 2});
+                        else p.circle(0, 0, t * p.kx, {fill: "rgba(88,196,221,0.16)", stroke: C.blue, width: 2});
+                        p.contours(touching, () => ({color: C.yellow, width: 2}));
+                        p.line(c.x, c.y, w[0], w[1], {color: rgba(C.white, 0.4), width: 1, dash: [3, 4]});
+                        p.text("★", c.x, c.y, {color: C.yellow, size: 22, align: "center", baseline: "middle"});
+                        p.circle(w[0], w[1], 7, {fill: sparse ? C.green : C.white, stroke: C.canvas, width: 2.5});
+                    }}
+                />
+            }
+            controls={
+                <Group label="Penalty">
+                    <Segmented
+                        label="penalty"
+                        value={norm}
+                        onChange={setNorm}
+                        options={[
+                            {value: 1, label: "L1 (lasso)"},
+                            {value: 2, label: "L2 (ridge)"},
+                        ]}
                     />
-                }
-                side={
-                    <div className="controls">
-                        <Segmented
-                            label="penalty"
-                            value={norm}
-                            onChange={setNorm}
-                            options={[
-                                {value: 1, label: "L1 (lasso)"},
-                                {value: 2, label: "L2 (ridge)"},
-                            ]}
-                        />
-                        <Slider label="budget t (smaller = stronger penalty)" value={t} min={0.1} max={2.2} onChange={setT} color={C.blue} />
-                        <Stats>
-                            <Stat label="w₁" value={w[0].toFixed(3)} color={Math.abs(w[0]) < 1e-9 ? C.green : undefined} />
-                            <Stat label="w₂" value={w[1].toFixed(3)} color={Math.abs(w[1]) < 1e-9 ? C.green : undefined} />
-                        </Stats>
-                        <p className="note" style={{color: sparse ? C.green : undefined}}>
-                            {sparse ? "One coefficient is exactly zero: the contour touched a corner." : "Both coefficients are nonzero."}
-                        </p>
-                        <p className="note">
-                            Regularizing means minimizing the loss (purple ellipses around the star) while keeping the coefficients inside the blue region.
-                            The answer is where the growing ellipses first touch the region (yellow). The diamond's corners stick out along the axes, so
-                            they are usually touched first, which puts a coefficient at exactly zero.
-                        </p>
-                    </div>
-                }
-            />
-        </Instrument>
+                    <Slider label="budget t (smaller = stronger penalty)" value={t} min={0.1} max={2.2} onChange={setT} color={C.blue} />
+                </Group>
+            }
+            readouts={
+                <>
+                    <Stats>
+                        <Stat label="w₁" value={w[0].toFixed(3)} color={Math.abs(w[0]) < 1e-9 ? C.green : undefined} />
+                        <Stat label="w₂" value={w[1].toFixed(3)} color={Math.abs(w[1]) < 1e-9 ? C.green : undefined} />
+                    </Stats>
+                    <p className="note" style={{color: sparse ? C.green : undefined}}>
+                        {sparse ? "One coefficient is exactly zero: the contour touched a corner." : "Both coefficients are nonzero."}
+                    </p>
+                    <p className="note">
+                        Regularizing means minimizing the loss (purple ellipses around the star) while keeping the coefficients inside the blue region.
+                        The answer is where the growing ellipses first touch the region (yellow). The diamond's corners stick out along the axes, so
+                        they are usually touched first, which puts a coefficient at exactly zero.
+                    </p>
+                </>
+            }
+        />
     );
 }
 
@@ -299,74 +306,76 @@ function EarlyStopping(props: {degree?: number}) {
     const pastBest = f0 > best;
 
     return (
-        <Instrument hint="Gradient descent trains a high-degree polynomial; watch what it learns first, and what it learns last">
-            <FigureLayout
-                sideWidth={310}
-                main={
-                    <>
-                        <Plot
-                            label="Polynomial being trained by gradient descent"
-                            view={VIEW}
-                            aspect={0.62}
-                            draw={(p) => {
-                                p.clear();
-                                p.grid(0.25);
-                                const t: number[] = [];
-                                for (let i = 0; i <= 200; i++) {
-                                    const x = -1 + (2 * i) / 200;
-                                    t.push(x, truth(x));
-                                }
-                                p.polyline(t, {color: rgba(C.green, 0.55), width: 1.5, dash: [6, 6]});
-                                for (let i = 0; i < test.length; i += 2) p.circle(test[i], test[i + 1], 2.4, {stroke: rgba(C.muted, 0.5), width: 1});
-                                p.polyline(curve, {color: pastBest ? C.orange : C.yellow, width: 2.8});
-                                for (let i = 0; i < train.length; i += 2) p.point(train[i], train[i + 1], C.blue, {r: 5});
-                            }}
-                        />
-                        <Player
-                            timeline={tl}
-                            status={
-                                pastBest ? (
-                                    <span className="c-orange">Step {step.toLocaleString()}: still lowering training error, but now by memorizing noise, so test error is rising.</span>
-                                ) : (
-                                    <>Step {step.toLocaleString()}: the smooth trend comes first. The wiggly, high-degree parts are learned far more slowly.</>
-                                )
-                            }
-                        />
-                    </>
+        <Rig
+            hint="Gradient descent trains a high-degree polynomial; watch what it learns first, and what it learns last"
+            visual={
+                <Plot
+                    label="Polynomial being trained by gradient descent"
+                    view={VIEW}
+                    aspect={0.62}
+                    draw={(p) => {
+                        p.clear();
+                        p.grid(0.25);
+                        const t: number[] = [];
+                        for (let i = 0; i <= 200; i++) {
+                            const x = -1 + (2 * i) / 200;
+                            t.push(x, truth(x));
+                        }
+                        p.polyline(t, {color: rgba(C.green, 0.55), width: 1.5, dash: [6, 6]});
+                        for (let i = 0; i < test.length; i += 2) p.circle(test[i], test[i + 1], 2.4, {stroke: rgba(C.muted, 0.5), width: 1});
+                        p.polyline(curve, {color: pastBest ? C.orange : C.yellow, width: 2.8});
+                        for (let i = 0; i < train.length; i += 2) p.point(train[i], train[i + 1], C.blue, {r: 5});
+                    }}
+                />
+            }
+            caption={
+                    pastBest ? (
+                        <span className="c-orange">Step {step.toLocaleString()}: still lowering training error, but now by memorizing noise, so test error is rising.</span>
+                    ) : (
+                        <>Step {step.toLocaleString()}: the smooth trend comes first. The wiggly, high-degree parts are learned far more slowly.</>
+                    )
                 }
-                side={
-                    <div className="controls">
-                        <div className="panel-label">
-                            <span>Error vs. training steps (log)</span>
-                        </div>
-                        <LineChart
-                            label="Training and test error during training"
-                            series={[
-                                {values: trainErr, color: C.muted, dash: [4, 3], upto: tl.t},
-                                {values: testErr, color: C.green, upto: tl.t},
-                            ]}
-                            height={130}
-                            logY
-                            xMax={F - 1}
-                            marker={best}
-                            xLabel="steps 1 → 200k"
-                        />
-                        <p className="note">
-                            The dotted marker is where test error bottoms out. Stopping training there, called <strong>early stopping</strong>, acts like
-                            a regularizer: the model hasn't had time to fit the noise yet.
-                        </p>
-                        <Stats>
-                            <Stat label="train error" value={fmt(trainErr[f0] - 1e-5, 4)} />
-                            <Stat label="test error" value={fmt(testErr[f0] - 1e-5, 4)} color={pastBest ? C.orange : C.green} />
-                        </Stats>
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Model">
                         <Slider label="polynomial degree" value={degree} min={1} max={MAX_DEGREE} step={1} onChange={setDegree} format={(v) => v.toFixed(0)} color={C.yellow} />
-                        <div className="control-row">
+                    </Group>
+                    <Group label="Data">
+                        <Actions>
                             <Button onClick={() => setSeed(randomSeed())}>New sample</Button>
-                        </div>
+                        </Actions>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    <div className="panel-label">
+                        <span>Error vs. training steps (log)</span>
                     </div>
-                }
-            />
-        </Instrument>
+                    <LineChart
+                        label="Training and test error during training"
+                        series={[
+                            {values: trainErr, color: C.muted, dash: [4, 3], upto: tl.t},
+                            {values: testErr, color: C.green, upto: tl.t},
+                        ]}
+                        height={130}
+                        logY
+                        xMax={F - 1}
+                        marker={best}
+                        xLabel="steps 1 → 200k"
+                    />
+                    <p className="note">
+                        The dotted marker is where test error bottoms out. Stopping training there, called <strong>early stopping</strong>, acts like
+                        a regularizer: the model hasn't had time to fit the noise yet.
+                    </p>
+                    <Stats>
+                        <Stat label="train error" value={fmt(trainErr[f0] - 1e-5, 4)} />
+                        <Stat label="test error" value={fmt(testErr[f0] - 1e-5, 4)} color={pastBest ? C.orange : C.green} />
+                    </Stats>
+                </>
+            }
+        />
     );
 }
 

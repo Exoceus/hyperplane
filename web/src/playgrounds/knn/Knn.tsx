@@ -1,10 +1,10 @@
 import {useMemo, useState} from "react";
 import {Button, Player, Segmented, Slider} from "../../components/Controls";
-import {FigureLayout} from "../../components/Figure";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Plot, type PlotPointer} from "../../components/Plot";
+import {Actions, Group, Rig} from "../../components/Rig";
 import {classRegionColor} from "../../lib/colors";
 import {appendRow, drawLabelled, hitPoint, removeRow} from "../../lib/data";
 import {useTimeline} from "../../lib/hooks";
@@ -118,41 +118,49 @@ function KnnFigure(props: {kind?: Kind; noise?: number; k?: number; metric?: num
     const reset = () => setExtra(new Float64Array());
 
     return (
-        <Instrument hint="Watch each cell get classified by its neighbors · then hover to probe · click to add a point">
-            <FigureLayout
-                sideWidth={300}
-                main={
-                    <>
-                    <Plot
-                        label="k-nearest-neighbour decision regions"
-                        view={VIEW}
-                        maxHeight={620}
-                        onPointer={onPointer}
-                        draw={(p) => {
-                            p.clear();
-                            if (scanning) p.image(painted, VIEW, false);
-                            else p.image(regions, VIEW);
-                            p.grid(0.25, {axes: false});
-                            if (neighbours && probe) {
-                                for (const i of neighbours.idx) p.line(probe.x, probe.y, data[3 * i], data[3 * i + 1], {color: rgba(C.white, 0.55), width: 1.2});
-                                drawBall(p, probe.x, probe.y, neighbours.radius, metric, rgba(C.white, 0.75));
-                            }
-                            drawLabelled(p, data, {r: 4});
-                            if (neighbours) for (const i of neighbours.idx) p.circle(data[3 * i], data[3 * i + 1], 7.5, {stroke: C.white, width: 1.5});
-                            if (probe) p.circle(probe.x, probe.y, 5, {fill: scanning ? C.yellow : C.white, stroke: C.canvas, width: 2});
-                        }}
-                    />
-                    <Player
-                        timeline={tl}
-                        status={scanning ? `Classifying cell ${cell + 1} of ${SCAN * SCAN}: find its ${k} nearest points, take a majority vote, paint the cell.` : "Every cell classified. Hover anywhere to probe a point yourself."}
-                    />
-                    </>
-                }
-                side={
-                    <div className="controls">
+        <Rig
+            hint="Watch each cell get classified by its neighbors · then hover to probe · click to add a point"
+            visual={
+                <Plot
+                    label="k-nearest-neighbour decision regions"
+                    view={VIEW}
+                    maxHeight={620}
+                    onPointer={onPointer}
+                    draw={(p) => {
+                        p.clear();
+                        if (scanning) p.image(painted, VIEW, false);
+                        else p.image(regions, VIEW);
+                        p.grid(0.25, {axes: false});
+                        if (neighbours && probe) {
+                            for (const i of neighbours.idx) p.line(probe.x, probe.y, data[3 * i], data[3 * i + 1], {color: rgba(C.white, 0.55), width: 1.2});
+                            drawBall(p, probe.x, probe.y, neighbours.radius, metric, rgba(C.white, 0.75));
+                        }
+                        drawLabelled(p, data, {r: 4});
+                        if (neighbours) for (const i of neighbours.idx) p.circle(data[3 * i], data[3 * i + 1], 7.5, {stroke: C.white, width: 1.5});
+                        if (probe) p.circle(probe.x, probe.y, 5, {fill: scanning ? C.yellow : C.white, stroke: C.canvas, width: 2});
+                    }}
+                />
+            }
+            caption={scanning ? `Classifying cell ${cell + 1} of ${SCAN * SCAN}: find its ${k} nearest points, take a majority vote, paint the cell.` : "Every cell classified. Hover anywhere to probe a point yourself."}
+            controls={
+                <>
+                    <Player timeline={tl} />
+                    <Group label="Data">
                         <Segmented value={kind} onChange={(v) => (setKind(v), reset(), setBrush(0))} options={KINDS} />
-                        <Slider label={<>neighbors <M>{"k"}</M></>} value={k} min={1} max={KMAX} step={1} onChange={setK} format={(v) => v.toFixed(0)} color={C.yellow} />
                         <Slider label="noise" value={noise} min={0} max={0.6} onChange={(v) => (setNoise(v), reset())} />
+                        <Segmented
+                            label="Clicking adds"
+                            value={brush}
+                            onChange={setBrush}
+                            options={Array.from({length: numClasses}, (_, c) => ({value: c, label: <span style={{color: classColor(c)}}>● class {c}</span>}))}
+                        />
+                        <Actions>
+                            <Button onClick={() => (setSeed(randomSeed()), reset())}>New data</Button>
+                            {extra.length > 0 && <Button onClick={reset}>Clear added</Button>}
+                        </Actions>
+                    </Group>
+                    <Group label="k-NN">
+                        <Slider label={<>neighbors <M>{"k"}</M></>} value={k} min={1} max={KMAX} step={1} onChange={setK} format={(v) => v.toFixed(0)} color={C.yellow} />
                         <Segmented
                             label="distance"
                             value={metric}
@@ -163,57 +171,51 @@ function KnnFigure(props: {kind?: Kind; noise?: number; k?: number; metric?: num
                                 {value: 2, label: "Chebyshev", title: "max of |Δx|, |Δy| (L∞)"},
                             ]}
                         />
-                        {neighbours && (
-                            <div className="side-block">
-                                <span className="control-label">Votes at the probe</span>
-                                <div style={{display: "flex", gap: 3, height: 14, borderRadius: 4, overflow: "hidden"}}>
-                                    {neighbours.votes.map((v, c) =>
-                                        v > 0 ? <div key={c} style={{flex: v, background: classColor(c)}} title={`${v} votes`} /> : null
-                                    )}
-                                </div>
-                                <span className="note">
-                                    {neighbours.votes.map((v, c) => (
-                                        <span key={c} style={{color: classColor(c), marginRight: 10}}>
-                                            {v} vote{v === 1 ? "" : "s"}
-                                        </span>
-                                    ))}
-                                </span>
+                    </Group>
+                </>
+            }
+            readouts={
+                <>
+                    {neighbours && (
+                        <div className="side-block">
+                            <span className="control-label">Votes at the probe</span>
+                            <div style={{display: "flex", gap: 3, height: 14, borderRadius: 4, overflow: "hidden"}}>
+                                {neighbours.votes.map((v, c) =>
+                                    v > 0 ? <div key={c} style={{flex: v, background: classColor(c)}} title={`${v} votes`} /> : null
+                                )}
                             </div>
-                        )}
-                        <div className="panel-label">
-                            <span>Accuracy vs. k</span>
+                            <span className="note">
+                                {neighbours.votes.map((v, c) => (
+                                    <span key={c} style={{color: classColor(c), marginRight: 10}}>
+                                        {v} vote{v === 1 ? "" : "s"}
+                                    </span>
+                                ))}
+                            </span>
                         </div>
-                        <LineChart
-                            label="Training and held-out accuracy for each k"
-                            series={[
-                                {values: curve.train, color: C.muted, x0: 1, dash: [4, 3]},
-                                {values: curve.held, color: C.green, x0: 1},
-                            ]}
-                            height={110}
-                            xMin={1}
-                            yMax={1}
-                            marker={k}
-                            yFormat={(v) => `${Math.round(v * 100)}%`}
-                            onPick={(x) => setK(Math.max(1, Math.min(KMAX, Math.round(x))))}
-                        />
-                        <p className="note note-muted">
-                            <span style={{color: "var(--muted)"}}>- - training points</span> ·{" "}
-                            <span className="c-green">— fresh test points</span>. Held-out accuracy at k = {k}: {Math.round(curve.held[k - 1] * 100)}%.
-                        </p>
-                        <Segmented
-                            label="Clicking adds"
-                            value={brush}
-                            onChange={setBrush}
-                            options={Array.from({length: numClasses}, (_, c) => ({value: c, label: <span style={{color: classColor(c)}}>● class {c}</span>}))}
-                        />
-                        <div className="control-row">
-                            <Button onClick={() => (setSeed(randomSeed()), reset())}>New data</Button>
-                            {extra.length > 0 && <Button onClick={reset}>Clear added</Button>}
-                        </div>
+                    )}
+                    <div className="panel-label">
+                        <span>Accuracy vs. k</span>
                     </div>
-                }
-            />
-        </Instrument>
+                    <LineChart
+                        label="Training and held-out accuracy for each k"
+                        series={[
+                            {values: curve.train, color: C.muted, x0: 1, dash: [4, 3]},
+                            {values: curve.held, color: C.green, x0: 1},
+                        ]}
+                        height={110}
+                        xMin={1}
+                        yMax={1}
+                        marker={k}
+                        yFormat={(v) => `${Math.round(v * 100)}%`}
+                        onPick={(x) => setK(Math.max(1, Math.min(KMAX, Math.round(x))))}
+                    />
+                    <p className="note note-muted">
+                        <span style={{color: "var(--muted)"}}>- - training points</span> ·{" "}
+                        <span className="c-green">— fresh test points</span>. Held-out accuracy at k = {k}: {Math.round(curve.held[k - 1] * 100)}%.
+                    </p>
+                </>
+            }
+        />
     );
 }
 

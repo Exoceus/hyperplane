@@ -1,9 +1,10 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import {Button, LiveControls, Slider, Stat, Stats} from "../../components/Controls";
-import {FigureLayout, Panel} from "../../components/Figure";
+import {Panel} from "../../components/Figure";
 import {M, MathBlock} from "../../components/Math";
-import {Instrument, Playground, type Scenario} from "../../components/Playground";
+import {Playground, type Scenario} from "../../components/Playground";
 import {Plot} from "../../components/Plot";
+import {Group, Rig} from "../../components/Rig";
 import {useAnimationFrame, useInView} from "../../lib/hooks";
 import type {View} from "../../lib/painter";
 import {getSpeed, takeSteps} from "../../lib/speed";
@@ -156,46 +157,50 @@ function TsneInstrument(props: {kind?: Kind; perplexity?: number}) {
     const tv: View = {xmin: -r, xmax: r, ymin: -r, ymax: r};
 
     return (
-        <Instrument hint={data.description}>
-            <div ref={ref}>
-                <FigureLayout
-                    sideWidth={280}
-                    main={
-                        <div className="duo">
-                            <Panel label="PCA: best linear 2D view">
-                                <Plot label="PCA projection of high-dimensional data" view={pv} draw={(p) => scatter(p, pcaView, data)} />
-                            </Panel>
-                            <Panel label="t-SNE" right={`iteration ${frame?.iter ?? 0}${(frame?.iter ?? 0) < 100 ? " · exaggerating" : ""}`}>
-                                <Plot label="t-SNE embedding, optimizing live" view={tv} draw={(p) => (frame ? scatter(p, frame.y, data) : p.clear())} />
-                            </Panel>
-                        </div>
-                    }
-                    side={
-                        <div className="controls">
+        <div ref={ref}>
+            <Rig
+                visual={
+                    <div className="duo">
+                        <Panel label="PCA: best linear 2D view">
+                            <Plot label="PCA projection of high-dimensional data" view={pv} draw={(p) => scatter(p, pcaView, data)} />
+                        </Panel>
+                        <Panel label="t-SNE" right={`iteration ${frame?.iter ?? 0}${(frame?.iter ?? 0) < 100 ? " · exaggerating" : ""}`}>
+                            <Plot label="t-SNE embedding, optimizing live" view={tv} draw={(p) => (frame ? scatter(p, frame.y, data) : p.clear())} />
+                        </Panel>
+                    </div>
+                }
+                caption={data.description}
+                controls={
+                    <>
+                        <LiveControls
+                            running={running}
+                            onToggle={() => setRunning(!running)}
+                            onStep={() => sim.current && sim.current.iteration < 1000 && sim.current.step(1)}
+                            stepTitle="One gradient step"
+                            onReset={() => setRestart(restart + 1)}
+                            resetTitle="Restart from a random layout"
+                        >
+                            <Button onClick={() => setSeed(randomSeed())}>New sample</Button>
+                        </LiveControls>
+                        <Group label="t-SNE">
                             <Slider label="perplexity (≈ neighbors considered)" value={perplexity} min={2} max={80} step={1} onChange={setPerplexity} color={C.yellow} format={(v) => v.toFixed(0)} />
-                            <LiveControls
-                                running={running}
-                                onToggle={() => setRunning(!running)}
-                                onStep={() => sim.current && sim.current.iteration < 1000 && sim.current.step(1)}
-                                stepTitle="One gradient step"
-                                onReset={() => setRestart(restart + 1)}
-                                resetTitle="Restart from a random layout"
-                            >
-                                <Button onClick={() => setSeed(randomSeed())}>New sample</Button>
-                            </LiveControls>
-                            <Stats>
-                                <Stat label="iteration" value={frame?.iter ?? 0} />
-                                <Stat label="KL(P‖Q)" value={frame && Number.isFinite(frame.kl) ? frame.kl.toFixed(3) : "—"} color={C.yellow} />
-                            </Stats>
-                            <p className="note">
-                                Colors are the true groups. Neither method sees them. PCA keeps the directions of largest variance. t-SNE keeps each point's
-                                nearest neighbors close.
-                            </p>
-                        </div>
-                    }
-                />
-            </div>
-        </Instrument>
+                        </Group>
+                    </>
+                }
+                readouts={
+                    <>
+                        <Stats>
+                            <Stat label="iteration" value={frame?.iter ?? 0} />
+                            <Stat label="KL(P‖Q)" value={frame && Number.isFinite(frame.kl) ? frame.kl.toFixed(3) : "—"} color={C.yellow} />
+                        </Stats>
+                        <p className="note">
+                            Colors are the true groups. Neither method sees them. PCA keeps the directions of largest variance. t-SNE keeps each point's
+                            nearest neighbors close.
+                        </p>
+                    </>
+                }
+            />
+        </div>
     );
 }
 
