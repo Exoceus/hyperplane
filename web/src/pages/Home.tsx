@@ -1,11 +1,13 @@
-import {useEffect, useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from "react";
 import {Link} from "react-router";
+import {CYCLE, drawNetwork, NET_VIEW, phaseName, traceSample, type Trace} from "../components/Backprop";
 import {FeatureArt} from "../components/FeatureArt";
 import {Plot} from "../components/Plot";
 import {Thumb} from "../components/Thumb";
 import {probabilityColor} from "../lib/colors";
 import {useAnimationFrame, useInView} from "../lib/hooks";
 import {heatImage} from "../lib/painter";
+import {getSpeed} from "../lib/speed";
 import {C, classColor} from "../lib/theme";
 import {contour_segments, make_shape, Mlp, randomSeed} from "../lib/wasm";
 import {CATEGORIES, LIVE, ORDERED, PLAYGROUNDS, type CategoryId} from "../playgrounds/registry";
@@ -13,18 +15,70 @@ import {CATEGORIES, LIVE, ORDERED, PLAYGROUNDS, type CategoryId} from "../playgr
 const HERO_VIEW = {xmin: -1.65, xmax: 1.65, ymin: -1.05, ymax: 1.05};
 const SHAPES = ["spiral", "moons", "circles", "xor"] as const;
 const GRID = {nx: 110, ny: 70};
+const SIZES = [2, 10, 10, 1];
 
-/** A small neural network learning a toy dataset, live, right on the landing page. */
+interface Sim {
+    net: Mlp;
+    data: Float64Array;
+    frames: number;
+    shape: number;
+    /** Consecutive cycles that ended with the problem solved. */
+    settled: number;
+    /** Seconds into the current forward/backward cycle. */
+    clock: number;
+    /** Index of the training point being traced this cycle (−1 = none yet). */
+    pick: number;
+}
+
+const NARROW = "(max-width: 640px)";
+function subscribeNarrow(cb: () => void) {
+    const mq = window.matchMedia(NARROW);
+    mq.addEventListener("change", cb);
+    return () => mq.removeEventListener("change", cb);
+}
+/** Whether the viewport is phone-sized (the network strip gets taller there). */
+function useNarrow(): boolean {
+    return useSyncExternalStore(subscribeNarrow, () => window.matchMedia(NARROW).matches, () => false);
+}
+
+/** Forward and backward pass of one training point through the network as it is right now. */
+function traceAt(s: Sim, params: ArrayLike<number>, i: number): Trace {
+    return traceSample(params, SIZES, s.data[3 * i], s.data[3 * i + 1], s.data[3 * i + 2]);
+}
+
+/**
+ * Pick the next point to trace: the training point the network currently gets
+ * most wrong, so its gradients have something to say. Ties (early on, when
+ * everything is wrong) are broken at random.
+ */
+function nextPick(s: Sim, params: ArrayLike<number>): number {
+    const n = s.data.length / 3;
+    let best = -1;
+    let bestLoss = -1;
+    for (let i = 0; i < n; i++) {
+        const loss = traceAt(s, params, i).loss * (1 + 0.15 * Math.random());
+        if (loss > bestLoss) [best, bestLoss] = [i, loss];
+    }
+    return best;
+}
+
+/**
+ * A small neural network learning a toy dataset, live, right on the landing
+ * page. Underneath, one training point at a time goes through the network:
+ * forward pass, loss, backpropagation, weight update.
+ */
 function HeroCanvas() {
-    const [ref, visible] = useInView<HTMLDivElement>("0px");
-    const sim = useRef<{net: Mlp; data: Float64Array; frames: number; shape: number; done: number} | null>(null);
+    const [ref, visible] = useInView<HTMLElement>("0px");
+    const sim = useRef<Sim | null>(null);
     const [frame, setFrame] = useState<{img: HTMLCanvasElement; contour: Float64Array; loss: number; steps: number; shape: string} | null>(null);
+    const [pulse, setPulse] = useState<{trace: Trace; t: number} | null>(null);
+    const narrow = useNarrow();
 
     const reset = (shape: number) => {
         sim.current?.net.free();
         const kind = SHAPES[shape % SHAPES.length];
         const data = make_shape(kind, 260, kind === "spiral" ? 0.12 : 0.15, randomSeed());
-        sim.current = {net: new Mlp(new Uint32Array([2, 10, 10, 1]), 0, randomSeed()), data, frames: 0, shape, done: 0};
+        sim.current = {net: new Mlp(new Uint32Array(SIZES), 0, randomSeed()), data, frames: 0, shape, settled: 0, clock: 0, pick: -1};
     };
 
     useEffect(() => {
@@ -35,16 +89,30 @@ function HeroCanvas() {
         };
     }, []);
 
-    useAnimationFrame(() => {
+    useAnimationFrame((dt) => {
         const s = sim.current;
         if (!s) return;
         s.frames++;
-        const loss = s.net.train(s.data, 3, 0.02, 0, 1, 0);
-        if (loss < 0.05 || s.frames > 2400) s.done++;
-        if (s.done > 120) {
-            reset(s.shape + 1);
-            return;
+        const loss = s.net.train(s.data, 2, 0.02, 0, 1, 0);
+        // The forward/backward cycle follows the viewer's speed setting. The
+        // traced point is re-run through the live weights every frame, so what
+        // the diagram shows always matches the map above it.
+        const params = s.net.params();
+        s.clock += dt * getSpeed();
+        if (s.pick < 0 || s.clock >= CYCLE) {
+            if (s.pick >= 0) {
+                // Only move on to the next dataset between cycles, after one
+                // full cycle showing the solved problem.
+                s.settled = loss < 0.05 || s.frames > 3600 ? s.settled + 1 : 0;
+                if (s.settled >= 2) {
+                    reset(s.shape + 1);
+                    return;
+                }
+            }
+            s.clock %= CYCLE;
+            s.pick = nextPick(s, params);
         }
+        setPulse({trace: traceAt(s, params, s.pick), t: s.clock});
         if (s.frames % 2 === 0) {
             const g = s.net.predict_grid(HERO_VIEW.xmin, HERO_VIEW.xmax, HERO_VIEW.ymin, HERO_VIEW.ymax, GRID.nx, GRID.ny);
             setFrame({
@@ -56,6 +124,8 @@ function HeroCanvas() {
             });
         }
     }, visible);
+
+    const backprop = pulse !== null && phaseName(pulse.t) === "backpropagate";
 
     return (
         <figure ref={ref} className="hero-figure">
@@ -74,14 +144,32 @@ function HeroCanvas() {
                         if (frame) p.contours(frame.contour, () => ({color: C.white, width: 2, alpha: 0.9}));
                         const d = sim.current?.data;
                         if (d) for (let i = 0; i < d.length; i += 3) p.point(d[i], d[i + 1], classColor(d[i + 2]), {r: 3.6});
+                        // The point currently being traced through the network.
+                        if (pulse) {
+                            const grow = Math.min(1, pulse.t / 0.35);
+                            const {x, y, label} = pulse.trace;
+                            p.point(x, y, classColor(label), {r: 4.6});
+                            p.circle(x, y, 7 + 9 * (1 - grow), {stroke: backprop ? C.pink : C.white, width: 2.2, alpha: 0.4 + 0.6 * grow});
+                        }
+                    }}
+                />
+                <Plot
+                    className="hero-net"
+                    label="The network's forward pass and backpropagation for the ringed training point"
+                    view={NET_VIEW}
+                    aspect={narrow ? 0.55 : undefined}
+                    draw={(p) => {
+                        if (pulse) drawNetwork(p, pulse.trace, SIZES, pulse.t);
+                        else p.clear();
                     }}
                 />
             </div>
             <figcaption className="hero-caption">
                 <span className="fig-label">Fig. 0</span>
                 <span>
-                    A 2-10-10-1 network learning <em>{frame?.shape ?? "spiral"}</em>, live in your browser.{" "}
-                    <Link to="/play/neural-networks">Open this playground →</Link>
+                    A 2-10-10-1 network learning <em>{frame?.shape ?? "spiral"}</em>, live in your browser. Below it, the ringed point goes through
+                    the network: activations flow forward, then the error flows back as <span className="c-pink">gradients</span> that nudge
+                    every weight. <Link to="/play/neural-networks">Open this playground →</Link>
                 </span>
                 <span className="mono hero-meta">
                     <span className="live-dot" />
@@ -98,7 +186,7 @@ interface Featured {
     jumps: {id: string; title: string}[];
 }
 
-/** Two playgrounds worth starting with. */
+/** Featured: two essential algorithms of modern machine learning. */
 const FEATURED: Featured[] = [
     {
         slug: "gradient-descent",
@@ -184,9 +272,7 @@ export default function Home() {
 
             <section className="featured" aria-labelledby="featured-title">
                 <header className="section-head">
-                    <span className="section-num">§ 1</span>
-                    <h2 id="featured-title">Start here</h2>
-                    <p>Two playgrounds that show what this place is for.</p>
+                    <h2 id="featured-title">Essential algorithms</h2>
                 </header>
                 <div className="features">
                     {FEATURED.map((f) => (
@@ -197,9 +283,7 @@ export default function Home() {
 
             <section id="playgrounds" className="catalog" aria-labelledby="catalog-title">
                 <header className="section-head">
-                    <span className="section-num">§ 2</span>
-                    <h2 id="catalog-title">Every playground</h2>
-                    <p>Grouped by what the algorithm is for. Each one opens on a scenario that runs itself.</p>
+                    <h2 id="catalog-title">Explore playgrounds</h2>
                 </header>
                 <div className="filters" role="tablist" aria-label="Filter by category">
                     <button type="button" className={`chip ${filter === "all" ? "is-active" : ""}`} onClick={() => setFilter("all")}>

@@ -1,4 +1,4 @@
-import {useEffect, useRef, type ReactNode} from "react";
+import {useEffect, useRef, useState, type ReactNode} from "react";
 import type {Timeline} from "../lib/hooks";
 import {setSpeed, SPEEDS, speedLabel, useSpeed} from "../lib/speed";
 
@@ -215,9 +215,15 @@ interface TransportKeys {
     back?: () => void;
 }
 
-/** Space plays/pauses, ← / → step, unless the viewer is typing or using a slider. */
-function useTransportKeys(keys: TransportKeys) {
+type KeyName = "space" | "left" | "right";
+
+/**
+ * Space plays/pauses, ← / → step, unless the viewer is typing or using a
+ * slider. Returns the key currently held, so its keycap can press down.
+ */
+function useTransportKeys(keys: TransportKeys): KeyName | null {
     const ref = useRef(keys);
+    const [down, setDown] = useState<KeyName | null>(null);
     useEffect(() => {
         ref.current = keys;
     });
@@ -232,21 +238,45 @@ function useTransportKeys(keys: TransportKeys) {
             const k = entry.current;
             if (e.key === " " && k.toggle && !el?.closest("button, a, summary")) {
                 e.preventDefault();
-                k.toggle();
+                if (!e.repeat) k.toggle();
+                setDown("space");
             } else if (e.key === "ArrowRight" && k.forward) {
                 e.preventDefault();
                 k.forward();
+                setDown("right");
             } else if (e.key === "ArrowLeft" && k.back) {
                 e.preventDefault();
                 k.back();
+                setDown("left");
             }
         };
+        const onUp = () => setDown(null);
         window.addEventListener("keydown", onKey);
+        window.addEventListener("keyup", onUp);
+        window.addEventListener("blur", onUp);
         return () => {
             window.removeEventListener("keydown", onKey);
+            window.removeEventListener("keyup", onUp);
+            window.removeEventListener("blur", onUp);
             keyTargets.splice(keyTargets.indexOf(entry), 1);
         };
     }, []);
+    return down;
+}
+
+/** Keycaps showing the keyboard shortcuts; the held key presses down. */
+function KeyHints({keys, down}: {keys: KeyName[]; down: KeyName | null}) {
+    const glyph = {space: "space", left: "←", right: "→"};
+    const title = {space: "Space: play / pause", left: "←: step back", right: "→: step forward"};
+    return (
+        <span className="transport-keys" aria-hidden>
+            {keys.map((k) => (
+                <kbd key={k} className={`key key-${k} ${down === k ? "is-down" : ""}`} title={title[k]}>
+                    {glyph[k]}
+                </kbd>
+            ))}
+        </span>
+    );
 }
 
 /** The site-wide playback speed. Every animation scales its own pace by it. */
@@ -266,7 +296,7 @@ export function SpeedPicker() {
 /** Transport for a recorded run: reset, step, play, scrub and speed. */
 export function Player({timeline: tl}: {timeline: Timeline}) {
     const pos = tl.length > 0 ? (tl.t / tl.length) * 100 : 0;
-    useTransportKeys({toggle: tl.length > 0 ? tl.toggle : undefined, forward: tl.stepForward, back: tl.stepBack});
+    const down = useTransportKeys({toggle: tl.length > 0 ? tl.toggle : undefined, forward: tl.stepForward, back: tl.stepBack});
     return (
         <div className="transport">
             <div className="transport-row">
@@ -284,9 +314,7 @@ export function Player({timeline: tl}: {timeline: Timeline}) {
                         {Icon.next}
                     </Button>
                 </div>
-                <span className="transport-keys" aria-hidden>
-                    space · ← →
-                </span>
+                <KeyHints keys={["space", "left", "right"]} down={down} />
             </div>
             <input
                 className="transport-scrub"
@@ -328,7 +356,7 @@ interface LiveControlsProps {
 
 /** Transport for a simulation that runs live: play/pause, step, reset and speed. */
 export function LiveControls({running, onToggle, onStep, stepTitle = "Step once", onReset, resetTitle = "Start over", children, status}: LiveControlsProps) {
-    useTransportKeys({toggle: onToggle, forward: onStep});
+    const down = useTransportKeys({toggle: onToggle, forward: onStep});
     return (
         <div className="transport">
             <div className="transport-row">
@@ -347,7 +375,10 @@ export function LiveControls({running, onToggle, onStep, stepTitle = "Step once"
                         </Button>
                     )}
                 </div>
-                <span className={`transport-live ${running ? "is-on" : ""}`}>{running ? "running" : "paused"}</span>
+                <span className="transport-side">
+                    <span className={`transport-live ${running ? "is-on" : ""}`}>{running ? "running" : "paused"}</span>
+                    <KeyHints keys={onStep ? ["space", "right"] : ["space"]} down={down} />
+                </span>
             </div>
             {children && <div className="control-row">{children}</div>}
             <SpeedRow />
