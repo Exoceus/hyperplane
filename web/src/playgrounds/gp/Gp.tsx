@@ -242,7 +242,6 @@ function BayesOpt() {
                         />
                         <Player
                             timeline={tl}
-                            speeds={[0.5, 1, 3]}
                             status={
                                 count >= run.length
                                     ? `Done: ${run.length} samples. Best found ${obs.reduce((b, o) => Math.max(b, o.y), -Infinity).toFixed(3)}.`
@@ -329,7 +328,6 @@ function GpStream() {
                         />
                         <Player
                             timeline={tl}
-                            speeds={[0.5, 1, 3]}
                             status={count === 0 ? "No data yet: the prior says anything between −2 and 2 is plausible everywhere." : `${count} observation${count === 1 ? "" : "s"}: average uncertainty σ = ${meanStd.toFixed(3)}`}
                         />
                     </>

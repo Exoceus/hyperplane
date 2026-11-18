@@ -141,7 +141,6 @@ function SquaresFigure({outlier = false, autoRun = false}: {outlier?: boolean; a
                     {run && (
                         <Player
                             timeline={tl}
-                            speeds={[0.5, 1, 3]}
                             status={
                                 tl.atEnd ? (
                                     <span className="c-green">Done: this is the least-squares line. No other line has less total area.</span>
@@ -321,7 +320,7 @@ function LandscapeFigure(props: {lr?: number; center?: boolean}) {
             </div>
             <div className="figure-layout" style={{marginTop: 14, "--side": "300px"} as React.CSSProperties}>
                 <div className="figure-main">
-                    <Player timeline={tl} speeds={[5, 20, 60]} status={diverged ? <span className="c-red">The steps overshoot the valley and the loss explodes, so lower the learning rate.</span> : undefined} />
+                    <Player timeline={tl} status={diverged ? <span className="c-red">The steps overshoot the valley and the loss explodes, so lower the learning rate.</span> : undefined} />
                     <LineChart label="Loss above the minimum, log scale" series={[{values: losses, color: C.yellow, upto: tl.t}]} logY height={120} xLabel="step" yLabel="L − L*  (log)" xMax={K} />
                 </div>
                 <div className="figure-side">
@@ -415,7 +414,7 @@ function PlaneFigure() {
                                 }
                             }}
                         />
-                        <Player timeline={tl} speeds={[0.5, 1, 3]} status={`Step ${k}: ŷ = ${w1.toFixed(2)}·x₁ ${w2 >= 0 ? "+" : "−"} ${Math.abs(w2).toFixed(2)}·x₂ ${b0 >= 0 ? "+" : "−"} ${Math.abs(b0).toFixed(2)}`} />
+                        <Player timeline={tl} status={`Step ${k}: ŷ = ${w1.toFixed(2)}·x₁ ${w2 >= 0 ? "+" : "−"} ${Math.abs(w2).toFixed(2)}·x₂ ${b0 >= 0 ? "+" : "−"} ${Math.abs(b0).toFixed(2)}`} />
                     </>
                 }
                 side={

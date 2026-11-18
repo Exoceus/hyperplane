@@ -1,11 +1,12 @@
 import {useEffect, useMemo, useRef, useState} from "react";
-import {Button, Icon, Legend, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
+import {Button, Legend, LiveControls, Segmented, Slider, Stat, Stats, Toggle} from "../../components/Controls";
 import {FigureLayout} from "../../components/Figure";
 import {LineChart} from "../../components/LineChart";
 import {M, MathBlock} from "../../components/Math";
 import {Instrument, Playground, type Scenario} from "../../components/Playground";
 import {Plot} from "../../components/Plot";
 import {useAnimationFrame, useInView} from "../../lib/hooks";
+import {useSpeed} from "../../lib/speed";
 import {C} from "../../lib/theme";
 import {Bandit, randomSeed} from "../../lib/wasm";
 
@@ -50,7 +51,8 @@ function BanditInstrument(props: {means?: number[]; focus?: number; epsilon?: nu
     const [focus, setFocus] = useState(props.focus ?? 3);
     const [epsilon, setEpsilon] = useState(props.epsilon ?? 0.1);
     const [ucbC, setUcbC] = useState(1);
-    const [speed, setSpeed] = useState(props.speed ?? 20);
+    // Pulls per second: this scenario's natural pace times the viewer's speed.
+    const speed = (props.speed ?? 20) * useSpeed();
     const [running, setRunning] = useState(true);
     const [reveal, setReveal] = useState(false);
     const [version, setVersion] = useState(0);
@@ -177,16 +179,15 @@ function BanditInstrument(props: {means?: number[]; focus?: number; epsilon?: nu
                     side={
                         <div className="controls">
                             <Segmented label="Show beliefs of" value={focus} onChange={setFocus} options={STRATEGIES.map((s) => ({value: s.id, label: s.name}))} />
-                            <div className="control-row">
-                                <Button variant="primary" onClick={() => setRunning(!running)} title={running ? "Pause" : "Play"}>
-                                    {running ? Icon.pause : Icon.play}
-                                </Button>
-                                <Button onClick={() => sim.current && (sim.current.step(1), setSnap(read(sim.current)))}>Pull once</Button>
-                                <Button onClick={() => (setVersion(version + 1), setSnap(null))} title="Reset">
-                                    {Icon.reset}
-                                </Button>
-                            </div>
-                            <Slider label="pulls per second" value={speed} min={2} max={400} log step={1} onChange={setSpeed} format={(v) => v.toFixed(0)} />
+                            <LiveControls
+                                running={running}
+                                onToggle={() => setRunning(!running)}
+                                onStep={() => sim.current && (sim.current.step(1), setSnap(read(sim.current)))}
+                                stepTitle="Pull once"
+                                onReset={() => (setVersion(version + 1), setSnap(null))}
+                                resetTitle="Forget every pull and start over"
+                                status={<span className="mono">{Math.round(speed)} pulls per second</span>}
+                            />
                             <Slider label={<>ε (ε-greedy)</>} value={epsilon} min={0} max={0.5} onChange={setEpsilon} color={C.blue} />
                             <Slider label="optimism c (UCB)" value={ucbC} min={0} max={3} onChange={setUcbC} color={C.green} />
                             <Toggle label="Reveal true payout rates" checked={reveal} onChange={setReveal} />

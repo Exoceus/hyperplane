@@ -147,7 +147,6 @@ function SvmInstrument(props: {kind?: DataKind; kernel?: number; c?: number; gam
                     />
                     <Player
                         timeline={tl}
-                        speeds={[0.5, 1, 3]}
                         status={
                             f >= frameCount - 1 ? (
                                 <span className="c-green">Converged: every point satisfies the margin conditions (KKT) up to tolerance.</span>
@@ -342,7 +341,7 @@ function KernelTrick() {
                                 for (const o of order) if (!(planeAlpha > 0 && o.below)) p.point(o.u, o.v, o.c > 0.5 ? C.blue : C.orange, {r: 4});
                             }}
                         />
-                        <Player timeline={tl} showSpeed={false} status={tl.t < 0.02 ? "Flat: no line separates the rings." : tl.t > 0.98 ? "Lifted to z = x² + y²: a flat plane separates them." : "Lifting…"} />
+                        <Player timeline={tl} status={tl.t < 0.02 ? "Flat: no line separates the rings." : tl.t > 0.98 ? "Lifted to z = x² + y²: a flat plane separates them." : "Lifting…"} />
                     </>
                 }
                 side={

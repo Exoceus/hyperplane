@@ -136,7 +136,7 @@ function NbInstrument(props: {kind?: Kind; full?: boolean}) {
                                 }
                             }}
                         />
-                        <Player timeline={tl} speeds={[0.5, 1, 3]} status={tl.atEnd ? `Trained on all ${n} points.` : `Learned from ${used} of ${n} points so far: each class is just a mean and a spread.`} />
+                        <Player timeline={tl} status={tl.atEnd ? `Trained on all ${n} points.` : `Learned from ${used} of ${n} points so far: each class is just a mean and a spread.`} />
                     </>
                 }
                 side={
@@ -209,7 +209,7 @@ function Densities3D() {
                                 }
                             }}
                         />
-                        <Player timeline={tl} showSpeed={false} status="The decision boundary sits exactly where two hills cross." />
+                        <Player timeline={tl} status="The decision boundary sits exactly where two hills cross." />
                     </>
                 }
                 side={

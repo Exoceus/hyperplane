@@ -244,7 +244,7 @@ function PlaneFigure(props: {sep?: number; l2?: number}) {
                                 drawLabelled(p, data, {r: 4.2});
                             }}
                         />
-                        <Player timeline={tl} speeds={[20, 60, 200]} status={`gradient descent step ${k * RECORD} of ${STEPS}`} />
+                        <Player timeline={tl} status={`gradient descent step ${k * RECORD} of ${STEPS}`} />
                     </>
                 }
                 side={
@@ -333,7 +333,7 @@ function Sigmoid3D(props: {sep?: number}) {
                                 for (let i = 0; i < data.length; i += 3) sc.point([data[i] / SPAN, data[i + 1] / SPAN, data[i + 2] > 0.5 ? 0.47 : -0.47], classColor(data[i + 2]), 3.8, {bias: 0.01});
                             }}
                         />
-                        <Player timeline={tl} speeds={[0.5, 1, 3]} status={`Step ${k * 6}: ‖w‖ = ${Math.hypot(w1, w2).toFixed(2)}, so the ramp gets steeper as the model grows more confident`} />
+                        <Player timeline={tl} status={`Step ${k * 6}: ‖w‖ = ${Math.hypot(w1, w2).toFixed(2)}, so the ramp gets steeper as the model grows more confident`} />
                     </>
                 }
                 side={

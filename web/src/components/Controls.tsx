@@ -1,5 +1,6 @@
-import type {ReactNode} from "react";
+import {useEffect, useRef, type ReactNode} from "react";
 import type {Timeline} from "../lib/hooks";
+import {setSpeed, SPEEDS, speedLabel, useSpeed} from "../lib/speed";
 
 // ---------------------------------------------------------------------------
 // Slider
@@ -205,29 +206,86 @@ const Icon = {
 
 export {Icon};
 
+/** Only the most recently mounted transport answers the keyboard. */
+const keyTargets: {current: TransportKeys}[] = [];
+
+interface TransportKeys {
+    toggle?: () => void;
+    forward?: () => void;
+    back?: () => void;
+}
+
+/** Space plays/pauses, ← / → step, unless the viewer is typing or using a slider. */
+function useTransportKeys(keys: TransportKeys) {
+    const ref = useRef(keys);
+    useEffect(() => {
+        ref.current = keys;
+    });
+    useEffect(() => {
+        const entry = ref;
+        keyTargets.push(entry);
+        const onKey = (e: KeyboardEvent) => {
+            if (keyTargets[keyTargets.length - 1] !== entry) return;
+            if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+            const el = e.target instanceof HTMLElement ? e.target : null;
+            if (el?.closest("input, textarea, select, [contenteditable='true']")) return;
+            const k = entry.current;
+            if (e.key === " " && k.toggle && !el?.closest("button, a, summary")) {
+                e.preventDefault();
+                k.toggle();
+            } else if (e.key === "ArrowRight" && k.forward) {
+                e.preventDefault();
+                k.forward();
+            } else if (e.key === "ArrowLeft" && k.back) {
+                e.preventDefault();
+                k.back();
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => {
+            window.removeEventListener("keydown", onKey);
+            keyTargets.splice(keyTargets.indexOf(entry), 1);
+        };
+    }, []);
+}
+
+/** The site-wide playback speed. Every animation scales its own pace by it. */
+export function SpeedPicker() {
+    const speed = useSpeed();
+    return (
+        <div className="speed-picker" role="radiogroup" aria-label="Playback speed" title="Playback speed (remembered across playgrounds)">
+            {SPEEDS.map((s) => (
+                <button key={s} type="button" role="radio" aria-checked={speed === s} className={speed === s ? "is-active" : ""} onClick={() => setSpeed(s)}>
+                    {speedLabel(s)}
+                </button>
+            ))}
+        </div>
+    );
+}
+
 interface PlayerProps {
     timeline: Timeline;
     /** Label for the current step, e.g. "update 3 / 12". */
     status?: ReactNode;
-    showSpeed?: boolean;
-    speeds?: number[];
 }
 
-export function Player({timeline: tl, status, showSpeed = true, speeds = [1, 2, 5, 15]}: PlayerProps) {
+/** Transport for a recorded run: reset, step, play, scrub and speed. */
+export function Player({timeline: tl, status}: PlayerProps) {
     const pos = tl.length > 0 ? (tl.t / tl.length) * 100 : 0;
+    useTransportKeys({toggle: tl.length > 0 ? tl.toggle : undefined, forward: tl.stepForward, back: tl.stepBack});
     return (
         <div className="player">
             <div className="player-buttons">
-                <Button onClick={tl.reset} title="Reset" variant="subtle">
+                <Button onClick={tl.reset} title="Back to the start" variant="subtle">
                     {Icon.reset}
                 </Button>
-                <Button onClick={tl.stepBack} title="Step back" variant="subtle" disabled={tl.t <= 0}>
+                <Button onClick={tl.stepBack} title="Step back (←)" variant="subtle" disabled={tl.t <= 0}>
                     {Icon.prev}
                 </Button>
-                <Button onClick={tl.toggle} title={tl.playing ? "Pause" : "Play"} variant="primary" disabled={tl.length === 0}>
+                <Button onClick={tl.toggle} title={tl.playing ? "Pause (space)" : "Play (space)"} variant="primary" disabled={tl.length === 0}>
                     {tl.playing ? Icon.pause : Icon.play}
                 </Button>
-                <Button onClick={tl.stepForward} title="Step forward" variant="subtle" disabled={tl.atEnd}>
+                <Button onClick={tl.stepForward} title="Step forward (→)" variant="subtle" disabled={tl.atEnd}>
                     {Icon.next}
                 </Button>
             </div>
@@ -242,15 +300,47 @@ export function Player({timeline: tl, status, showSpeed = true, speeds = [1, 2, 
                 style={{"--pos": `${pos}%`} as React.CSSProperties}
                 disabled={tl.length === 0}
             />
-            {showSpeed && (
-                <div className="player-speed segmented small" role="radiogroup" aria-label="Speed">
-                    {speeds.map((s) => (
-                        <button key={s} type="button" className={tl.speed === s ? "is-active" : ""} onClick={() => tl.setSpeed(s)}>
-                            {s}×
-                        </button>
-                    ))}
-                </div>
-            )}
+            <SpeedPicker />
+            {status && <div className="player-status">{status}</div>}
+        </div>
+    );
+}
+
+interface LiveControlsProps {
+    running: boolean;
+    onToggle: () => void;
+    /** Advance by one step while paused. */
+    onStep?: () => void;
+    stepTitle?: string;
+    onReset?: () => void;
+    resetTitle?: string;
+    /** Extra buttons, e.g. "Train 100 episodes". */
+    children?: ReactNode;
+    status?: ReactNode;
+}
+
+/** Transport for a simulation that runs live: play/pause, step, reset and speed. */
+export function LiveControls({running, onToggle, onStep, stepTitle = "Step once", onReset, resetTitle = "Start over", children, status}: LiveControlsProps) {
+    useTransportKeys({toggle: onToggle, forward: onStep});
+    return (
+        <div className="player player-live">
+            <div className="player-buttons">
+                {onReset && (
+                    <Button onClick={onReset} title={resetTitle} variant="subtle">
+                        {Icon.reset}
+                    </Button>
+                )}
+                <Button onClick={onToggle} title={running ? "Pause (space)" : "Play (space)"} variant="primary">
+                    {running ? Icon.pause : Icon.play}
+                </Button>
+                {onStep && (
+                    <Button onClick={onStep} title={`${stepTitle} (→)`} variant="subtle" disabled={running}>
+                        {Icon.next}
+                    </Button>
+                )}
+            </div>
+            <div className="player-extra">{children}</div>
+            <SpeedPicker />
             {status && <div className="player-status">{status}</div>}
         </div>
     );

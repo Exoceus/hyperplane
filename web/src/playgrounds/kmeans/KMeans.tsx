@@ -182,7 +182,6 @@ function LloydFigure(props: {kind?: Kind; blobs?: number; k?: number; method?: n
                         />
                         <Player
                             timeline={tl}
-                            speeds={[0.7, 1.4, 4]}
                             status={
                                 tl.atEnd && L > 0 ? (
                                     <span className="c-green">

@@ -164,7 +164,6 @@ function GmmInstrument(props: {kind?: Kind; k?: number}) {
                         />
                         <Player
                             timeline={tl}
-                            speeds={[2, 4, 12]}
                             status={tl.atEnd && T > 0 ? (run.converged ? `Converged after ${T} iterations.` : `Stopped after ${T} iterations.`) : `Iteration ${i0} of ${T}`}
                         />
                     </>
