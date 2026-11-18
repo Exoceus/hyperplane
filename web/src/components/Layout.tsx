@@ -41,8 +41,18 @@ export function Layout({children}: {children: ReactNode}) {
                 <div className="site-footer-inner">
                     <Logo size={18} />
                     <p>
-                        Every figure is computed live in your browser by a Rust core compiled to WebAssembly. No servers, no tracking. Just
-                        math.
+                        Running live in YOUR browser.{" "}
+                        <span aria-label="Idea" role="img">
+                            💡
+                        </span>{" "}
+                        by{" "}
+                        <a href="https://jatinm.com" target="_blank" rel="noreferrer">
+                            Jatin
+                        </a>{" "}
+                        and built by{" "}
+                        <span aria-label="an AI agent" role="img">
+                            🤖
+                        </span>
                     </p>
                     <a href={REPO} target="_blank" rel="noreferrer">
                         Source on GitHub ↗

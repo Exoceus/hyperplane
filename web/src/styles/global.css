@@ -280,6 +280,12 @@ h3 {
     min-width: 260px;
     margin: 0;
 }
+.site-footer-inner p a {
+    color: var(--text);
+    text-decoration: underline;
+    text-decoration-color: rgba(241, 238, 230, 0.35);
+    text-underline-offset: 3px;
+}
 
 .loading {
     display: flex;
@@ -655,10 +661,47 @@ input[type="range"]:disabled {
     width: 42px;
     padding: 0;
 }
+.transport-side {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
 .transport-keys {
-    font: 500 10.5px/1 var(--font-mono);
-    color: var(--muted);
-    opacity: 0.75;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+/* Keycaps: a little raised key with a darker lip that presses down while held. */
+.key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 21px;
+    padding: 0 6px 1px;
+    font: 500 11px/1 var(--font-mono);
+    color: var(--text-2);
+    background: linear-gradient(180deg, #2c2a25, #22211d);
+    border: 1px solid var(--line-2);
+    border-bottom: 3px solid #0a0908;
+    border-radius: 6px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    transition:
+        transform 0.06s,
+        border-bottom-width 0.06s,
+        color 0.1s,
+        background 0.1s;
+    user-select: none;
+}
+.key-space {
+    min-width: 50px;
+    font-size: 10.5px;
+}
+.key.is-down {
+    transform: translateY(2px);
+    border-bottom-width: 1px;
+    color: var(--ink);
+    background: var(--paper);
 }
 @media (hover: none) {
     .transport-keys {
@@ -992,6 +1035,9 @@ input[type="range"]:disabled {
     border-radius: 6px;
     box-shadow: 0 40px 90px -50px rgba(0, 0, 0, 0.95);
 }
+.hero-net {
+    margin-top: 10px;
+}
 .tick {
     position: absolute;
     width: 16px;
@@ -1070,7 +1116,7 @@ input[type="range"]:disabled {
     animation: pulse 1.6s ease-in-out infinite;
 }
 
-/* Section heads read like a numbered table of contents. */
+/* Section heads: a hairline rule over a serif title. */
 .section-head {
     display: flex;
     align-items: baseline;
@@ -1080,29 +1126,10 @@ input[type="range"]:disabled {
     padding-top: 20px;
     margin: 64px 0 24px;
 }
-.section-num {
-    font: 500 12px/1 var(--font-mono);
-    color: var(--muted);
-    min-width: 2.5em;
-}
 .section-head h2 {
     font-size: clamp(34px, 4vw, 46px);
     line-height: 1;
     margin: 0;
-}
-.section-head p {
-    flex: 1 1 260px;
-    margin: 0;
-    text-align: right;
-    font-size: 14.5px;
-    color: var(--muted);
-}
-@media (max-width: 640px) {
-    .section-head p {
-        text-align: left;
-        flex-basis: 100%;
-        padding-left: calc(2.5em + 16px);
-    }
 }
 
 .features {
