@@ -1,4 +1,5 @@
 import {useSyncExternalStore} from "react";
+import {track} from "./analytics";
 
 /**
  * One playback speed for the whole site, chosen by the viewer and remembered
@@ -29,6 +30,7 @@ export function getSpeed(): number {
 export function setSpeed(v: number) {
     if (v === current) return;
     current = v;
+    track("speed", {value: v});
     try {
         window.localStorage.setItem(KEY, String(v));
     } catch {

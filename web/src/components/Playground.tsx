@@ -1,5 +1,6 @@
 import {Component, Fragment, useMemo, useState, type ReactNode} from "react";
-import {useSearchParams} from "react-router";
+import {useParams, useSearchParams} from "react-router";
+import {track} from "../lib/analytics";
 import {ScenarioContext} from "./scenario";
 
 /** One preset situation inside a playground: a configured instrument plus what to try. */
@@ -43,12 +44,14 @@ interface PlaygroundProps {
  */
 export function Playground({scenarios, explainer}: PlaygroundProps) {
     const [params, setParams] = useSearchParams();
+    const {slug = ""} = useParams();
     const [nonce, setNonce] = useState(0);
     const active = scenarios.find((s) => s.id === params.get("s")) ?? scenarios[0];
     const index = scenarios.indexOf(active);
     const scenarioCtx = useMemo(() => ({reset: () => setNonce((n) => n + 1)}), []);
 
     const choose = (id: string) => {
+        track("scenario", {playground: slug, scenario: id});
         setParams(id === scenarios[0].id ? {} : {s: id}, {replace: true, preventScrollReset: true});
         setNonce((n) => n + 1);
     };

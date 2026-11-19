@@ -40,6 +40,20 @@ src/lib/              hooks, drawing, colors, the speed setting
 
 **Drawing.** `components/Plot.tsx` is a responsive, retina-aware canvas that redraws whenever it re-renders and reports pointer events in data coordinates. Drawing goes through `lib/painter.ts`, which works in data coordinates and provides the shared visual language: points, arrows, half-planes, heatmaps, contours. 3D views use `lib/scene3d.ts` and `components/Plot3D.tsx`: an orbit camera, depth-sorted shaded meshes and picking, all on a 2D canvas with no WebGL or three.js. Colors come from `lib/theme.ts`, so "the yellow 𝐰" in a picture is the same yellow as 𝐰 in the formulas, which are rendered with KaTeX.
 
+## Analytics
+
+Visits are counted with [Umami](https://umami.is): cookieless, no personal data, and it honors the browser's Do Not Track setting. `web/src/lib/analytics.ts` adds the tracker script only when `VITE_UMAMI_WEBSITE_ID` is set at build time, so local builds, deploy previews and forks load nothing. Besides pageviews (including client-side navigation), the site records two custom events: `scenario` (which playground and scenario someone picks) and `speed` (the speed they choose).
+
+The website ID is configured in Netlify, not in the repo. It isn't a secret, since every analytics ID ships in the page, but keeping it out of the repo stops forks from reporting into this site's dashboard:
+
+| Variable | Where | Value |
+| --- | --- | --- |
+| `VITE_UMAMI_WEBSITE_ID` | Netlify → Site configuration → Environment variables, **Production** context only | the website ID from Umami |
+| `VITE_UMAMI_DOMAINS` (optional) | same | `hyperplane.jatinm.com`, an extra guard so only the real domain is counted |
+| `VITE_UMAMI_SRC` (optional) | same | a self-hosted tracker URL, if you don't use Umami Cloud |
+
+Vite bakes these in at build time, so redeploy after changing them.
+
 ## Build and deploy
 
 - `npm run build` installs Rust if needed, builds the WASM package, copies it into `web/src/wasm/`, then type-checks and bundles the site.
