@@ -3,6 +3,14 @@ base = "/"
 command = "npm run build"
 publish = "web/dist"
 
+# A missing hashed asset (a chunk from an older deploy) must be a real 404.
+# Otherwise the SPA fallback below answers with index.html and a 200, and
+# the browser fails to run HTML as JavaScript.
+[[redirects]]
+from = "/assets/*"
+to = "/404.html"
+status = 404
+
 [[redirects]]
 from = "/*"
 to = "/index.html"

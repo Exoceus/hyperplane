@@ -1,6 +1,7 @@
 import {Suspense, use, useEffect} from "react";
 import {Navigate, Route, Routes, useLocation, useParams} from "react-router";
 import {Layout} from "./components/Layout";
+import {PageBoundary} from "./components/PageBoundary";
 import {Loading} from "./components/Loading";
 import {wasmReady} from "./lib/wasm";
 import Home from "./pages/Home";
@@ -28,19 +29,23 @@ function LegacyRedirect() {
 }
 
 export default function App() {
+    const {pathname} = useLocation();
     return (
         <Layout>
             <ScrollToTop />
-            <Suspense fallback={<Loading label="Warming up the WebAssembly core" />}>
-                <WasmGate>
-                    <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/play/:slug" element={<PlaygroundPage />} />
-                        <Route path="/learn/:slug" element={<LegacyRedirect />} />
-                        <Route path="*" element={<NotFound />} />
-                    </Routes>
-                </WasmGate>
-            </Suspense>
+            {/* Keyed by path: an error on one page never sticks to the next. */}
+            <PageBoundary key={pathname}>
+                <Suspense fallback={<Loading label="Warming up the WebAssembly core" />}>
+                    <WasmGate>
+                        <Routes>
+                            <Route path="/" element={<Home />} />
+                            <Route path="/play/:slug" element={<PlaygroundPage />} />
+                            <Route path="/learn/:slug" element={<LegacyRedirect />} />
+                            <Route path="*" element={<NotFound />} />
+                        </Routes>
+                    </WasmGate>
+                </Suspense>
+            </PageBoundary>
         </Layout>
     );
 }
