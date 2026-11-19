@@ -36,7 +36,7 @@ Each one opens on a scenario that plays itself. You can pause, step, scrub and c
 
 ## How it works
 
-Everything is client-side: the algorithms are written in Rust and compiled to WebAssembly, and the UI is a static React site drawing on plain `<canvas>`. There is no server and no tracking. See [architecture](docs/architecture.md).
+Everything is client-side: the algorithms are written in Rust and compiled to WebAssembly, and the UI is a static React site drawing on plain `<canvas>`. There is no server and there are no cookies. The only third-party script is anonymous, cookieless visit counting ([Umami](https://umami.is)), which honors Do Not Track. See [architecture](docs/architecture.md).
 
 ## Run it locally
 
